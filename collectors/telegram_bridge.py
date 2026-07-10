@@ -361,22 +361,28 @@ def threshold_emoji(threshold: int) -> str:
     return "🔔"
 
 
-def alert_message(snapshot: dict[str, Any], agent: str, window_name: str, used: float, remaining: float, reset_at: str | None, threshold: int) -> str:
-    agent_label = AGENT_LABELS.get(agent, agent)
-    window_label = WINDOW_SHORT_LABELS.get(window_name, window_name.replace("_", " ")).strip()
+def alert_message(snapshot: dict[str, Any], crossings: list[dict[str, Any]]) -> str:
+    """One combined message for every threshold crossed in this cycle run.
+
+    Each crossing dict: agent, window_name, used, remaining, reset_at, threshold.
+    """
     reference = resolve_reference(snapshot)
     report = "\n".join(build_report_lines(snapshot, reference))
-    header = "\n".join(
-        [
-            f"{threshold_emoji(threshold)} {agent_label} {window_label} 已達 {threshold}%",
-            f"目前已用 {used:.0f}%，剩餘 {remaining:.0f}%",
-            f"重置時間：{format_reset(reset_at, reference)}",
-        ]
-    )
+    header_lines: list[str] = []
+    for crossing in crossings:
+        agent_label = AGENT_LABELS.get(crossing["agent"], crossing["agent"])
+        window_label = WINDOW_SHORT_LABELS.get(
+            crossing["window_name"], crossing["window_name"].replace("_", " ")
+        ).strip()
+        threshold = crossing["threshold"]
+        header_lines.append(
+            f"{threshold_emoji(threshold)} {agent_label} {window_label} 已達 {threshold}%"
+            f"（已用 {crossing['used']:.0f}%，重置 {format_reset(crossing['reset_at'], reference)}）"
+        )
     footer = f"更新：{format_stamp(snapshot.get('captured_at'))}"
     return "\n\n".join(
         [
-            escape_markdown_v2(header),
+            escape_markdown_v2("\n".join(header_lines)),
             f"```\n{escape_code_block(report)}\n```",
             escape_markdown_v2(footer),
         ]
@@ -560,6 +566,7 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
     threshold_state = state.setdefault("thresholds", {})
     error_state = state.setdefault("errors", {})
     sent = 0
+    crossings: list[dict[str, Any]] = []
 
     agents = snapshot.get("agents", {})
     if not isinstance(agents, dict):
@@ -617,15 +624,30 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
                 if threshold not in sent_marks
             ]
             if pending:
-                threshold = max(pending)
-                send_message(
-                    token,
-                    str(chat_id),
-                    alert_message(snapshot, str(agent_name), str(window_name), float(used), float(remaining), window.get("reset_at"), threshold),
-                    parse_mode="MarkdownV2",
+                crossings.append(
+                    {
+                        "agent": str(agent_name),
+                        "window_name": str(window_name),
+                        "used": float(used),
+                        "remaining": float(remaining),
+                        "reset_at": window.get("reset_at"),
+                        "threshold": max(pending),
+                        "pending": pending,
+                        "sent_marks": sent_marks,
+                    }
                 )
-                sent_marks.extend(pending)
-                sent += 1
+
+    if crossings:
+        # All windows that crossed a threshold in this run share one message.
+        send_message(
+            token,
+            str(chat_id),
+            alert_message(snapshot, crossings),
+            parse_mode="MarkdownV2",
+        )
+        for crossing in crossings:
+            crossing["sent_marks"].extend(crossing["pending"])
+        sent += 1
 
     save_state(state)
     return {"ok": True, "sent": sent}

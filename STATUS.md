@@ -821,3 +821,12 @@ double percent sign in the Alerts tab fallback text, spotted in a README
 screenshot. Regression test added (26 total). Alerts were temporarily
 disabled in settings during the fix to stop the spam; re-enabled after the
 fixed build was installed.
+
+### 34. Same-run threshold crossings combined into one Telegram message (2026-07-10, same day)
+
+User received two near-identical alerts at 18:05 (Claude 5h 50% and 週S 50%),
+each carrying the full report. process-alerts now collects every window that
+crossed a threshold during one run and sends a single message: one header
+line per crossing (emoji, window, threshold, used, reset) above the shared
+report table. State marking semantics unchanged (marked only after a
+successful send). Test added (27 total).

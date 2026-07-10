@@ -801,6 +801,46 @@ class CollectorContractTests(unittest.TestCase):
             self.assertEqual(new_cycle, {"ok": True, "sent": 1})
             self.assertEqual(len(sent), 1)
 
+    def test_multiple_crossings_combine_into_one_message(self) -> None:
+        snapshot = {
+            "captured_at": "2026-07-10T10:00:00Z",
+            "agents": {
+                "claude": {
+                    "available": True,
+                    "windows": {
+                        "five_hour": {
+                            "used_percent": 66.0,
+                            "remaining_percent": 34.0,
+                            "reset_at": "2026-07-10T14:30:00Z",
+                            "window_duration_mins": 300,
+                        },
+                        "weekly_scoped": {
+                            "used_percent": 57.0,
+                            "remaining_percent": 43.0,
+                            "reset_at": "2026-07-11T03:00:00Z",
+                            "window_duration_mins": 10080,
+                        },
+                    },
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sent: list[str] = []
+            with mock.patch.object(self.telegram, "app_dir", return_value=Path(tmp_dir)), mock.patch.object(
+                self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "12345"}
+            ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+                self.telegram, "send_message", side_effect=lambda _t, _c, text, parse_mode=None: sent.append(text)
+            ):
+                result = self.telegram.action_process_alerts({"snapshot": snapshot})
+
+            self.assertEqual(result, {"ok": True, "sent": 1})
+            self.assertEqual(len(sent), 1)
+            self.assertIn("5h 已達 50%", sent[0].replace("\\", ""))
+            self.assertIn("週S 已達 50%", sent[0].replace("\\", ""))
+            state = json.loads((Path(tmp_dir) / "telegram-alert-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["thresholds"]["claude:five_hour"]["sent"], [50])
+            self.assertEqual(state["thresholds"]["claude:weekly_scoped"]["sent"], [50])
+
     @staticmethod
     def telegram_snapshot() -> dict[str, Any]:
         return {
