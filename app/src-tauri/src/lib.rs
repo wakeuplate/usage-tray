@@ -8,6 +8,7 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
 const COLLECTOR_RELATIVE_PATH: &str = "collectors\\collect_limit_lens.py";
@@ -327,6 +328,10 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app);
         }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let tauri::WindowEvent::Focused(false) = event {
@@ -336,6 +341,7 @@ pub fn run() {
         })
         .setup(|app| {
             migrate_legacy_app_dir();
+            let _ = app.autolaunch().enable();
             app.handle().plugin(tauri_plugin_positioner::init())?;
 
             let show = MenuItem::with_id(app, "show", "Show UsageTray", true, None::<&str>)?;
@@ -389,5 +395,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running UsageTray");
 }
-
 
