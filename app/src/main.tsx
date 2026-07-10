@@ -128,20 +128,20 @@ function getContextWindow(agent?: AgentResult): string | null {
   return formatPercent(clampPercent(remaining));
 }
 
+// Windows caps tray tooltips at roughly 64 characters; keep each line short.
 function formatResetIn(resetAt: string | null | undefined): string {
   const at = resetAt ? Date.parse(resetAt) : Number.NaN;
   if (!Number.isFinite(at)) return "-";
   let minutes = Math.max(0, Math.round((at - Date.now()) / 60_000));
   const hours = Math.floor(minutes / 60);
   minutes %= 60;
-  if (hours > 0) return `${hours} hr ${String(minutes).padStart(2, "0")} min`;
-  return `${minutes} min`;
+  return `${hours}h${String(minutes).padStart(2, "0")}m`;
 }
 
 function traySummary(snapshot: CollectorSnapshot): string {
   const line = (agent: string, label: string) => {
     const window = snapshot.agents[agent]?.windows.five_hour;
-    return `${label} resets in ${formatResetIn(window?.reset_at)}  ${formatPercent(window?.used_percent)}`;
+    return `${label} ${formatPercent(window?.used_percent)} · ${formatResetIn(window?.reset_at)}`;
   };
   return `5-hour\n${line("claude", "Claude")}\n${line("codex", "Codex")}`;
 }
@@ -303,7 +303,7 @@ function TrendChart({
         {series.map((item) => (
           <span key={item.label} className={item.className}>
             <i className={item.dashed ? "dashed" : ""} />
-            {item.label}
+            <b className="trend-name">{item.label}</b>
             <strong>{formatPercent(item.current)}</strong>
           </span>
         ))}

@@ -861,3 +861,23 @@ successful send). Test added (27 total).
   now preserves newlines.
 - History only spans since 07/09, so the weekly chart stays mostly empty
   until a full week of data accumulates - expected, not a bug.
+
+### 37. Trend legend color CSS specificity bug, tray tooltip length fix (2026-07-10, same day)
+
+User screenshot after installing the Trends redesign showed two bugs:
+
+- Legend swatches/lines rendered colorless (white/gray) instead of
+  Claude-coral / Codex-blue. Root cause: `.trend-legend > span` (specificity
+  0,1,1) was overriding the color set by `.trend-claude`/`.trend-codex`
+  (specificity 0,1,0) on the same span, since both are direct rules on the
+  element and the combinator selector wins regardless of source order. Fixed
+  by wrapping the label text in `<b className="trend-name">` and scoping the
+  muted-gray override to that class instead of the whole span, leaving the
+  span itself (and its icon + inherited SVG currentColor) tinted by
+  trend-claude/trend-codex as intended.
+- Tray tooltip hover showed "Codex resets in 2 hr 22" with the rest cut off.
+  Windows caps NOTIFYICONDATA tooltips at roughly 64 characters; the
+  requested "resets in X hr XX min  XX%" wording hit ~75 chars worst case
+  across 3 lines. Reformatted to a compact `Claude 91% · 4h06m` style
+  (still 3 lines: header + one per agent), worst case ~45 chars, implemented
+  identically in both `traySummary()` (TS) and `tooltip_summary()` (Rust).

@@ -363,9 +363,13 @@ h2 {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: rgba(255, 255, 255, 0.62);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+}
+
+.trend-legend .trend-name {
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 400;
 }
 
 .trend-legend i {
@@ -548,7 +552,7 @@ h2 {
     stroke: rgba(15, 23, 42, 0.18);
   }
 
-  .trend-legend > span,
+  .trend-legend .trend-name,
   .trend-ticks {
     color: rgba(30, 31, 33, 0.6);
   }

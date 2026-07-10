@@ -317,6 +317,7 @@ fn parse_iso_to_epoch(value: &str) -> Option<i64> {
     Some(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset_seconds)
 }
 
+// Windows caps tray tooltips at roughly 64 characters; keep each line short.
 fn tooltip_summary(payload: &serde_json::Value) -> String {
     fn line(payload: &serde_json::Value, agent: &str, label: &str) -> String {
         let window = &payload["agents"][agent]["windows"]["five_hour"];
@@ -332,17 +333,11 @@ fn tooltip_summary(payload: &serde_json::Value) -> String {
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|elapsed| elapsed.as_secs() as i64)
                     .unwrap_or(epoch);
-                let mut minutes = ((epoch - now).max(0) + 30) / 60;
-                let hours = minutes / 60;
-                minutes %= 60;
-                if hours > 0 {
-                    format!("{hours} hr {minutes:02} min")
-                } else {
-                    format!("{minutes} min")
-                }
+                let minutes = ((epoch - now).max(0) + 30) / 60;
+                format!("{}h{:02}m", minutes / 60, minutes % 60)
             })
             .unwrap_or_else(|| "-".to_string());
-        format!("{label} resets in {reset}  {used}")
+        format!("{label} {used} · {reset}")
     }
 
     format!(
