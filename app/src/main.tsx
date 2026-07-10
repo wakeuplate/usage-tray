@@ -215,17 +215,63 @@ function AgentPanel({ name, agent }: { name: string; agent?: AgentResult }) {
   );
 }
 
-function peakUsage(history: HistorySnapshot[], agentName: string, windowName: string): number | null {
-  const values = history
-    .map((snapshot) => snapshot.agents[agentName]?.windows[windowName]?.used_percent)
-    .filter((value): value is number => typeof value === "number" && !Number.isNaN(value));
-  return values.length > 0 ? Math.max(...values) : null;
+type TrendPoint = { t: number; v: number };
+
+function trendSeries(history: HistorySnapshot[], agentName: string, windowName: string): TrendPoint[] {
+  return history
+    .map((snapshot) => ({
+      t: Date.parse(snapshot.captured_at),
+      v: snapshot.agents[agentName]?.windows[windowName]?.used_percent,
+    }))
+    .filter((point): point is TrendPoint => Number.isFinite(point.t) && typeof point.v === "number" && !Number.isNaN(point.v))
+    .sort((a, b) => a.t - b.t);
 }
 
-function HistoryRow({ label, value }: { label: string; value: number | null }) {
-  const used = clampPercent(value);
+const TREND_HOURS = 24;
+const TREND_GAP_MS = 10 * 60 * 1000; // break the line when the app was off
+
+function trendSegments(points: TrendPoint[], end: number): TrendPoint[][] {
+  const start = end - TREND_HOURS * 3600 * 1000;
+  const visible = points.filter((point) => point.t >= start && point.t <= end);
+  const segments: TrendPoint[][] = [];
+  for (const point of visible) {
+    const current = segments[segments.length - 1];
+    if (current && point.t - current[current.length - 1].t <= TREND_GAP_MS) {
+      current.push(point);
+    } else {
+      segments.push([point]);
+    }
+  }
+  return segments;
+}
+
+const SPARK_W = 100;
+const SPARK_H = 30;
+
+function sparkX(t: number, end: number): number {
+  const start = end - TREND_HOURS * 3600 * 1000;
+  return ((t - start) / (end - start)) * SPARK_W;
+}
+
+function sparkY(v: number): number {
+  return SPARK_H - (clampPercent(v) / 100) * (SPARK_H - 2) - 1;
+}
+
+function HistoryRow({
+  label,
+  points,
+  end,
+}: {
+  label: string;
+  points: TrendPoint[];
+  end: number;
+}) {
+  const peak = points.length > 0 ? Math.max(...points.map((point) => point.v)) : null;
+  const used = clampPercent(peak);
   const high = used >= 90;
   const warm = used >= 70 && used < 90;
+  const tone = high ? "danger" : warm ? "warm" : "";
+  const segments = trendSegments(points, end);
 
   return (
     <div className="window-row">
@@ -233,19 +279,27 @@ function HistoryRow({ label, value }: { label: string; value: number | null }) {
         <span>{label}</span>
         <span className="window-values">
           <em>peak</em>
-          <strong>{formatPercent(value)}</strong>
+          <strong>{formatPercent(peak)}</strong>
         </span>
       </div>
-      <div
-        className="bar-shell"
-        role="progressbar"
-        aria-label={`${label} peak usage`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={value ?? undefined}
-        aria-valuetext={formatPercent(value)}
-      >
-        <div className={`bar-fill ${high ? "danger" : warm ? "warm" : ""}`} style={{ width: `${used}%` }} />
+      <div className={`spark-shell ${tone}`} role="img" aria-label={`${label} usage over the last 24 hours, peak ${formatPercent(peak)}`}>
+        <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none">
+          <line className="spark-grid" x1="0" y1={sparkY(50)} x2={SPARK_W} y2={sparkY(50)} />
+          {segments.map((segment, index) => {
+            const line = segment
+              .map((point, i) => `${i === 0 ? "M" : "L"}${sparkX(point.t, end).toFixed(2)},${sparkY(point.v).toFixed(2)}`)
+              .join(" ");
+            const first = segment[0];
+            const last = segment[segment.length - 1];
+            const area = `${line} L${sparkX(last.t, end).toFixed(2)},${SPARK_H} L${sparkX(first.t, end).toFixed(2)},${SPARK_H} Z`;
+            return (
+              <g key={index}>
+                <path className="spark-fill" d={area} />
+                <path className="spark-line" d={line} />
+              </g>
+            );
+          })}
+        </svg>
       </div>
     </div>
   );
@@ -255,6 +309,7 @@ function HistoryAgentPanel({ name, history }: { name: string; history: HistorySn
   const readings = history.filter((snapshot) => snapshot.agents[name]);
   const availableReadings = readings.filter((snapshot) => snapshot.agents[name]?.available).length;
   const order = name === "claude" ? ["five_hour", "weekly", "weekly_scoped"] : ["five_hour", "weekly"];
+  const end = readings.reduce((latest, snapshot) => Math.max(latest, Date.parse(snapshot.captured_at) || 0), 0) || Date.now();
 
   return (
     <section className="agent-panel">
@@ -267,9 +322,9 @@ function HistoryAgentPanel({ name, history }: { name: string; history: HistorySn
       </div>
 
       {readings.length > 0 ? (
-        <div className="window-stack">
+        <div className="window-stack history-stack">
           {order.map((key) => (
-            <HistoryRow key={key} label={pickLabel(key)} value={peakUsage(readings, name, key)} />
+            <HistoryRow key={key} label={pickLabel(key)} points={trendSeries(readings, name, key)} end={end} />
           ))}
         </div>
       ) : (

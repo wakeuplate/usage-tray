@@ -383,8 +383,7 @@ def alert_message(snapshot: dict[str, Any], crossings: list[dict[str, Any]]) -> 
     return "\n\n".join(
         [
             escape_markdown_v2("\n".join(header_lines)),
-            f"```\n{escape_code_block(report)}\n```",
-            escape_markdown_v2(footer),
+            f"```\n{escape_code_block(report)}\n\n{escape_code_block(footer)}\n```",
         ]
     )
 
@@ -398,8 +397,7 @@ def error_message(snapshot: dict[str, Any], agent: str, code: str, text: str | N
     return "\n\n".join(
         [
             escape_markdown_v2(header),
-            f"```\n{escape_code_block(report)}\n```",
-            escape_markdown_v2(footer),
+            f"```\n{escape_code_block(report)}\n\n{escape_code_block(footer)}\n```",
         ]
     )
 
@@ -410,8 +408,7 @@ def usage_command_message(snapshot: dict[str, Any]) -> str:
     return "\n\n".join(
         [
             escape_markdown_v2("📊 目前用量"),
-            f"```\n{escape_code_block(report)}\n```",
-            escape_markdown_v2(footer),
+            f"```\n{escape_code_block(report)}\n\n{escape_code_block(footer)}\n```",
         ]
     )
 

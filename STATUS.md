@@ -830,3 +830,14 @@ crossed a threshold during one run and sends a single message: one header
 line per crossing (emoji, window, threshold, used, reset) above the shared
 report table. State marking semantics unchanged (marked only after a
 successful send). Test added (27 total).
+
+### 35. 24h tab shows real trends; Telegram footer moved into code block (2026-07-10, same day)
+
+- The 24h tab now draws a 24-hour area sparkline per usage window (pure
+  inline SVG, no chart library): peaks, resets, and app-off gaps (line breaks
+  when readings are >10 min apart) are all visible. Peak value retained on
+  the right. History rows use a compact spacing set so all five sparklines
+  fit the 336x400 window exactly (measured overflow 0px via headless Edge).
+- Telegram messages now include the 更新 timestamp inside the code fence, per
+  user request.
+- README screenshots regenerated with real 24h data.
