@@ -262,7 +262,7 @@ fn read_history(app: AppHandle, limit: Option<usize>) -> Result<Vec<serde_json::
 fn update_tray_tooltip(app: AppHandle, summary: String) -> Result<(), String> {
     let clean: String = summary
         .chars()
-        .filter(|character| !character.is_control())
+        .filter(|character| *character == '\n' || !character.is_control())
         .take(120)
         .collect();
     if clean.trim().is_empty() {
@@ -280,18 +280,75 @@ fn set_tray_tooltip(app: &AppHandle, summary: String) -> Result<(), String> {
         .map_err(|_| "Unable to update tray tooltip.".to_string())
 }
 
+fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let adjusted_year = if month <= 2 { year - 1 } else { year };
+    let era = if adjusted_year >= 0 { adjusted_year } else { adjusted_year - 399 } / 400;
+    let year_of_era = adjusted_year - era * 400;
+    let shifted_month = if month > 2 { month - 3 } else { month + 9 } as i64;
+    let day_of_year = (153 * shifted_month + 2) / 5 + day as i64 - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146097 + day_of_era - 719468
+}
+
+fn parse_iso_to_epoch(value: &str) -> Option<i64> {
+    // Collector timestamps: YYYY-MM-DDTHH:MM:SS[.frac](Z|+HH:MM|-HH:MM)
+    let bytes = value.as_bytes();
+    if bytes.len() < 19 || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T' {
+        return None;
+    }
+    let number = |range: std::ops::Range<usize>| value.get(range)?.parse::<i64>().ok();
+    let year = number(0..4)?;
+    let month = number(5..7)? as u32;
+    let day = number(8..10)? as u32;
+    let hour = number(11..13)?;
+    let minute = number(14..16)?;
+    let second = number(17..19)?;
+    let rest = &value[19..];
+    let offset_start = rest.find(['Z', '+', '-']).map(|i| 19 + i).unwrap_or(value.len());
+    let offset_seconds = match value.get(offset_start..) {
+        Some("Z") | Some("") | None => 0,
+        Some(offset) => {
+            let sign = if offset.starts_with('-') { -1 } else { 1 };
+            let hours = offset.get(1..3)?.parse::<i64>().ok()?;
+            let minutes = offset.get(4..6)?.parse::<i64>().ok()?;
+            sign * (hours * 3600 + minutes * 60)
+        }
+    };
+    Some(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset_seconds)
+}
+
 fn tooltip_summary(payload: &serde_json::Value) -> String {
-    fn remaining(payload: &serde_json::Value, agent: &str) -> String {
-        payload["agents"][agent]["windows"]["five_hour"]["remaining_percent"]
+    fn line(payload: &serde_json::Value, agent: &str, label: &str) -> String {
+        let window = &payload["agents"][agent]["windows"]["five_hour"];
+        let used = window["used_percent"]
             .as_f64()
             .map(|value| format!("{value:.0}%"))
-            .unwrap_or_else(|| "-".to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let reset = window["reset_at"]
+            .as_str()
+            .and_then(parse_iso_to_epoch)
+            .map(|epoch| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|elapsed| elapsed.as_secs() as i64)
+                    .unwrap_or(epoch);
+                let mut minutes = ((epoch - now).max(0) + 30) / 60;
+                let hours = minutes / 60;
+                minutes %= 60;
+                if hours > 0 {
+                    format!("{hours} hr {minutes:02} min")
+                } else {
+                    format!("{minutes} min")
+                }
+            })
+            .unwrap_or_else(|| "-".to_string());
+        format!("{label} resets in {reset}  {used}")
     }
 
     format!(
-        "Codex 剩餘 {} | Claude 剩餘 {}",
-        remaining(payload, "codex"),
-        remaining(payload, "claude")
+        "5-hour\n{}\n{}",
+        line(payload, "claude", "Claude"),
+        line(payload, "codex", "Codex")
     )
 }
 

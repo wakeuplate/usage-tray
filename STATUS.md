@@ -841,3 +841,23 @@ successful send). Test added (27 total).
 - Telegram messages now include the 更新 timestamp inside the code fence, per
   user request.
 - README screenshots regenerated with real 24h data.
+
+### 36. Trends redesign (user-approved draft D), Now reorder, tooltip format (2026-07-10, same day)
+
+- 24h tab renamed Trends and rebuilt per the user-approved mockup: two
+  charts instead of five sparklines. "5-hour / last 24h" and "Weekly / last
+  7 days", each overlaying Claude (coral, matching its icon) and Codex
+  (blue) so quota scheduling is a visual comparison; Claude weekly_scoped is
+  a dashed coral line. Gradient area fills under solid lines, legends carry
+  live current values, hour/weekday tick labels, 50/100 gridlines. History
+  read raised to 7 days (limit 6000) with hourly-bucket downsampling
+  (30 min buckets for 24h, 3 h for 7 d). Card chrome, fonts, and English
+  labels match the Now tab. Fits 336x400 exactly (measured overflow 0).
+- Now tab order flipped: Claude card first, Codex second (user request).
+- Tray tooltip reformatted to the user-specified multi-line format
+  ("5-hour / Claude resets in X hr XX min  NN% / Codex ..."), implemented
+  identically in both writers (frontend traySummary and Rust
+  tooltip_summary with a dependency-free ISO parser); update_tray_tooltip
+  now preserves newlines.
+- History only spans since 07/09, so the weekly chart stays mostly empty
+  until a full week of data accumulates - expected, not a bug.

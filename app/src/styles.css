@@ -345,55 +345,84 @@ h2 {
   background: linear-gradient(90deg, #ff8078, #ea5264);
 }
 
-.history-stack {
-  gap: 5px;
-  margin-top: 6px;
+.trend-claude {
+  color: #e08464;
 }
 
-.history-stack .window-row {
-  gap: 2px;
-}
-
-.spark-shell {
-  width: 100%;
-  height: 16px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+.trend-codex {
   color: #73aaff;
 }
 
-.spark-shell.warm {
-  color: #f0a25a;
+.trend-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 7px;
 }
 
-.spark-shell.danger {
-  color: #ea5264;
+.trend-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
-.spark-shell svg {
+.trend-legend i {
+  width: 13px;
+  border-top: 2px solid currentColor;
+}
+
+.trend-legend i.dashed {
+  border-top-style: dashed;
+}
+
+.trend-legend strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.trend-plot {
+  margin-top: 6px;
+}
+
+.trend-plot svg {
   display: block;
   width: 100%;
-  height: 100%;
+  height: 58px;
 }
 
-.spark-grid {
+.trend-grid {
   stroke: rgba(255, 255, 255, 0.14);
-  stroke-width: 0.4;
+  stroke-width: 0.6;
   stroke-dasharray: 2 2;
 }
 
-.spark-line {
+.trend-line {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.1;
+  stroke-width: 1.6;
   vector-effect: non-scaling-stroke;
   stroke-linejoin: round;
 }
 
-.spark-fill {
-  fill: currentColor;
-  opacity: 0.22;
+.trend-line.dashed {
+  stroke-dasharray: 4 3;
+  opacity: 0.72;
+}
+
+.trend-stop {
+  stop-color: currentColor;
+}
+
+.trend-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .empty-state {
@@ -515,12 +544,25 @@ h2 {
     background: rgba(0, 0, 0, 0.06);
   }
 
-  .spark-shell {
-    background: rgba(15, 23, 42, 0.05);
+  .trend-grid {
+    stroke: rgba(15, 23, 42, 0.18);
   }
 
-  .spark-grid {
-    stroke: rgba(15, 23, 42, 0.16);
+  .trend-legend > span,
+  .trend-ticks {
+    color: rgba(30, 31, 33, 0.6);
+  }
+
+  .trend-legend strong {
+    color: rgba(30, 31, 33, 0.92);
+  }
+
+  .trend-claude {
+    color: #c9603e;
+  }
+
+  .trend-codex {
+    color: #3c78d8;
   }
 
   .mode-switch button,

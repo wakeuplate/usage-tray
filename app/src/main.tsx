@@ -128,10 +128,22 @@ function getContextWindow(agent?: AgentResult): string | null {
   return formatPercent(clampPercent(remaining));
 }
 
+function formatResetIn(resetAt: string | null | undefined): string {
+  const at = resetAt ? Date.parse(resetAt) : Number.NaN;
+  if (!Number.isFinite(at)) return "-";
+  let minutes = Math.max(0, Math.round((at - Date.now()) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  minutes %= 60;
+  if (hours > 0) return `${hours} hr ${String(minutes).padStart(2, "0")} min`;
+  return `${minutes} min`;
+}
+
 function traySummary(snapshot: CollectorSnapshot): string {
-  const codex = formatPercent(snapshot.agents.codex?.windows.five_hour?.remaining_percent);
-  const claude = formatPercent(snapshot.agents.claude?.windows.five_hour?.remaining_percent);
-  return `Codex 剩餘 ${codex} | Claude 剩餘 ${claude}`;
+  const line = (agent: string, label: string) => {
+    const window = snapshot.agents[agent]?.windows.five_hour;
+    return `${label} resets in ${formatResetIn(window?.reset_at)}  ${formatPercent(window?.used_percent)}`;
+  };
+  return `5-hour\n${line("claude", "Claude")}\n${line("codex", "Codex")}`;
 }
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
@@ -216,6 +228,7 @@ function AgentPanel({ name, agent }: { name: string; agent?: AgentResult }) {
 }
 
 type TrendPoint = { t: number; v: number };
+type TrendSeries = { label: string; className: string; dashed?: boolean; points: TrendPoint[]; current: number | null | undefined };
 
 function trendSeries(history: HistorySnapshot[], agentName: string, windowName: string): TrendPoint[] {
   return history
@@ -227,16 +240,24 @@ function trendSeries(history: HistorySnapshot[], agentName: string, windowName: 
     .sort((a, b) => a.t - b.t);
 }
 
-const TREND_HOURS = 24;
-const TREND_GAP_MS = 10 * 60 * 1000; // break the line when the app was off
+function bucketMax(points: TrendPoint[], start: number, end: number, bucketMs: number): TrendPoint[] {
+  const buckets = new Map<number, number>();
+  for (const point of points) {
+    if (point.t < start || point.t > end) continue;
+    const index = Math.floor((point.t - start) / bucketMs);
+    const existing = buckets.get(index);
+    buckets.set(index, existing === undefined ? point.v : Math.max(existing, point.v));
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([index, v]) => ({ t: start + index * bucketMs + bucketMs / 2, v }));
+}
 
-function trendSegments(points: TrendPoint[], end: number): TrendPoint[][] {
-  const start = end - TREND_HOURS * 3600 * 1000;
-  const visible = points.filter((point) => point.t >= start && point.t <= end);
+function gapSegments(points: TrendPoint[], gapMs: number): TrendPoint[][] {
   const segments: TrendPoint[][] = [];
-  for (const point of visible) {
+  for (const point of points) {
     const current = segments[segments.length - 1];
-    if (current && point.t - current[current.length - 1].t <= TREND_GAP_MS) {
+    if (current && point.t - current[current.length - 1].t <= gapMs) {
       current.push(point);
     } else {
       segments.push([point]);
@@ -245,92 +266,151 @@ function trendSegments(points: TrendPoint[], end: number): TrendPoint[][] {
   return segments;
 }
 
-const SPARK_W = 100;
-const SPARK_H = 30;
+const CHART_W = 300;
+const CHART_H = 72;
 
-function sparkX(t: number, end: number): number {
-  const start = end - TREND_HOURS * 3600 * 1000;
-  return ((t - start) / (end - start)) * SPARK_W;
-}
-
-function sparkY(v: number): number {
-  return SPARK_H - (clampPercent(v) / 100) * (SPARK_H - 2) - 1;
-}
-
-function HistoryRow({
-  label,
-  points,
+function TrendChart({
+  title,
+  rangeLabel,
+  series,
+  start,
   end,
+  bucketMs,
+  ticks,
 }: {
-  label: string;
-  points: TrendPoint[];
+  title: string;
+  rangeLabel: string;
+  series: TrendSeries[];
+  start: number;
   end: number;
+  bucketMs: number;
+  ticks: string[];
 }) {
-  const peak = points.length > 0 ? Math.max(...points.map((point) => point.v)) : null;
-  const used = clampPercent(peak);
-  const high = used >= 90;
-  const warm = used >= 70 && used < 90;
-  const tone = high ? "danger" : warm ? "warm" : "";
-  const segments = trendSegments(points, end);
+  const gradientBase = React.useId().replaceAll(":", "");
+  const x = (t: number) => ((t - start) / (end - start)) * CHART_W;
+  const y = (v: number) => CHART_H - (clampPercent(v) / 100) * (CHART_H - 6) - 3;
+  const hasData = series.some((item) => item.points.length > 0);
 
   return (
-    <div className="window-row">
-      <div className="window-meta">
-        <span>{label}</span>
-        <span className="window-values">
-          <em>peak</em>
-          <strong>{formatPercent(peak)}</strong>
-        </span>
-      </div>
-      <div className={`spark-shell ${tone}`} role="img" aria-label={`${label} usage over the last 24 hours, peak ${formatPercent(peak)}`}>
-        <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} preserveAspectRatio="none">
-          <line className="spark-grid" x1="0" y1={sparkY(50)} x2={SPARK_W} y2={sparkY(50)} />
-          {segments.map((segment, index) => {
-            const line = segment
-              .map((point, i) => `${i === 0 ? "M" : "L"}${sparkX(point.t, end).toFixed(2)},${sparkY(point.v).toFixed(2)}`)
-              .join(" ");
-            const first = segment[0];
-            const last = segment[segment.length - 1];
-            const area = `${line} L${sparkX(last.t, end).toFixed(2)},${SPARK_H} L${sparkX(first.t, end).toFixed(2)},${SPARK_H} Z`;
-            return (
-              <g key={index}>
-                <path className="spark-fill" d={area} />
-                <path className="spark-line" d={line} />
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function HistoryAgentPanel({ name, history }: { name: string; history: HistorySnapshot[] }) {
-  const readings = history.filter((snapshot) => snapshot.agents[name]);
-  const availableReadings = readings.filter((snapshot) => snapshot.agents[name]?.available).length;
-  const order = name === "claude" ? ["five_hour", "weekly", "weekly_scoped"] : ["five_hour", "weekly"];
-  const end = readings.reduce((latest, snapshot) => Math.max(latest, Date.parse(snapshot.captured_at) || 0), 0) || Date.now();
-
-  return (
-    <section className="agent-panel">
+    <section className="agent-panel trend-card">
       <div className="agent-heading">
-        <div className="agent-title">
-          <AgentIcon name={name} />
-          <h2>{name === "codex" ? "Codex" : "Claude"}</h2>
+        <div className="window-meta">
+          <span>{title}</span>
         </div>
-        <span className="history-count">{availableReadings} readings</span>
+        <span className="history-count">{rangeLabel}</span>
       </div>
-
-      {readings.length > 0 ? (
-        <div className="window-stack history-stack">
-          {order.map((key) => (
-            <HistoryRow key={key} label={pickLabel(key)} points={trendSeries(readings, name, key)} end={end} />
-          ))}
-        </div>
+      <div className="trend-legend">
+        {series.map((item) => (
+          <span key={item.label} className={item.className}>
+            <i className={item.dashed ? "dashed" : ""} />
+            {item.label}
+            <strong>{formatPercent(item.current)}</strong>
+          </span>
+        ))}
+      </div>
+      {hasData ? (
+        <>
+          <div className="trend-plot" role="img" aria-label={`${title} usage, ${rangeLabel}`}>
+            <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none">
+              <defs>
+                {series.map((item, index) =>
+                  item.dashed ? null : (
+                    <linearGradient key={index} id={`${gradientBase}-${index}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" className={`trend-stop ${item.className}`} stopOpacity="0.22" />
+                      <stop offset="100%" className={`trend-stop ${item.className}`} stopOpacity="0" />
+                    </linearGradient>
+                  ),
+                )}
+              </defs>
+              <line className="trend-grid" x1="0" y1={y(50)} x2={CHART_W} y2={y(50)} />
+              <line className="trend-grid" x1="0" y1={y(100)} x2={CHART_W} y2={y(100)} />
+              {series.map((item, index) => {
+                const bucketed = bucketMax(item.points, start, end, bucketMs);
+                return gapSegments(bucketed, bucketMs * 2.5).map((segment, segmentIndex) => {
+                  const line = segment
+                    .map((point, i) => `${i === 0 ? "M" : "L"}${x(point.t).toFixed(2)},${y(point.v).toFixed(2)}`)
+                    .join(" ");
+                  const area = `${line} L${x(segment[segment.length - 1].t).toFixed(2)},${CHART_H} L${x(segment[0].t).toFixed(2)},${CHART_H} Z`;
+                  return (
+                    <g key={`${index}-${segmentIndex}`} className={`trend-series ${item.className}`}>
+                      {item.dashed ? null : <path className="trend-fill" d={area} fill={`url(#${gradientBase}-${index})`} />}
+                      <path className={`trend-line ${item.dashed ? "dashed" : ""}`} d={line} />
+                    </g>
+                  );
+                });
+              })}
+            </svg>
+          </div>
+          <div className="trend-ticks">
+            {ticks.map((label, index) => (
+              <span key={index}>{label}</span>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="empty-state">History will appear after the first live reading.</div>
       )}
     </section>
+  );
+}
+
+function currentUsed(snapshot: CollectorSnapshot | undefined, agent: string, window: string): number | null | undefined {
+  return snapshot?.agents[agent]?.windows[window]?.used_percent;
+}
+
+function hourTicks(start: number, end: number, steps: number): string[] {
+  const labels: string[] = [];
+  for (let i = 0; i < steps; i++) {
+    const at = new Date(start + ((end - start) * i) / steps);
+    labels.push(`${String(at.getHours()).padStart(2, "0")}:00`);
+  }
+  labels.push("now");
+  return labels;
+}
+
+function dayTicks(start: number, end: number): string[] {
+  const labels: string[] = [];
+  const dayMs = 24 * 3600 * 1000;
+  for (let at = start; at < end - dayMs / 2; at += dayMs) {
+    labels.push(new Date(at).toLocaleDateString("en-US", { weekday: "short" }));
+  }
+  labels.push("now");
+  return labels;
+}
+
+function HistoryTrends({ history, snapshot }: { history: HistorySnapshot[]; snapshot?: CollectorSnapshot }) {
+  const end = history.reduce((latest, item) => Math.max(latest, Date.parse(item.captured_at) || 0), 0) || Date.now();
+  const dayStart = end - 24 * 3600 * 1000;
+  const weekStart = end - 7 * 24 * 3600 * 1000;
+
+  return (
+    <>
+      <TrendChart
+        title="5-hour"
+        rangeLabel="last 24h"
+        start={dayStart}
+        end={end}
+        bucketMs={30 * 60 * 1000}
+        ticks={hourTicks(dayStart, end, 4)}
+        series={[
+          { label: "Claude", className: "trend-claude", points: trendSeries(history, "claude", "five_hour"), current: currentUsed(snapshot, "claude", "five_hour") },
+          { label: "Codex", className: "trend-codex", points: trendSeries(history, "codex", "five_hour"), current: currentUsed(snapshot, "codex", "five_hour") },
+        ]}
+      />
+      <TrendChart
+        title="Weekly"
+        rangeLabel="last 7 days"
+        start={weekStart}
+        end={end}
+        bucketMs={3 * 3600 * 1000}
+        ticks={dayTicks(weekStart, end)}
+        series={[
+          { label: "Claude", className: "trend-claude", points: trendSeries(history, "claude", "weekly"), current: currentUsed(snapshot, "claude", "weekly") },
+          { label: "scoped", className: "trend-claude", dashed: true, points: trendSeries(history, "claude", "weekly_scoped"), current: currentUsed(snapshot, "claude", "weekly_scoped") },
+          { label: "Codex", className: "trend-codex", points: trendSeries(history, "codex", "weekly"), current: currentUsed(snapshot, "codex", "weekly") },
+        ]}
+      />
+    </>
   );
 }
 
@@ -450,7 +530,7 @@ function App() {
       setSnapshot(data);
       void invoke("update_tray_tooltip", { summary: traySummary(data) }).catch(() => undefined);
       try {
-        setHistory(await invoke<HistorySnapshot[]>("read_history", { limit: 1_000 }));
+        setHistory(await invoke<HistorySnapshot[]>("read_history", { limit: 6_000 }));
       } catch {
         setHistory([]);
       }
@@ -548,7 +628,7 @@ function App() {
   }, []);
 
   const recentHistory = React.useMemo(() => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     return history.filter((item) => {
       const capturedAt = new Date(item.captured_at).getTime();
       return Number.isFinite(capturedAt) && capturedAt >= cutoff;
@@ -587,7 +667,7 @@ function App() {
           className={mode === "history" ? "active" : ""}
           onClick={() => setMode("history")}
         >
-          24h
+          Trends
         </button>
         <button
           type="button"
@@ -605,14 +685,11 @@ function App() {
       <div className="agent-grid">
         {mode === "usage" ? (
           <>
-            <AgentPanel name="codex" agent={snapshot?.agents.codex} />
             <AgentPanel name="claude" agent={snapshot?.agents.claude} />
+            <AgentPanel name="codex" agent={snapshot?.agents.codex} />
           </>
         ) : mode === "history" ? (
-          <>
-            <HistoryAgentPanel name="codex" history={recentHistory} />
-            <HistoryAgentPanel name="claude" history={recentHistory} />
-          </>
+          <HistoryTrends history={recentHistory} snapshot={snapshot ?? undefined} />
         ) : (
           <AlertsPanel
             settings={alertSettings}
