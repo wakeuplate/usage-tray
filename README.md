@@ -1,36 +1,51 @@
 # UsageTray
 
-一個 Windows 系統匣小工具，一眼看完 **Codex** 與 **Claude Code** 的額度用量、重置時間與近 24 小時走勢，額度快用完時透過 **Telegram** 主動提醒。
+一個 Windows 系統匣小工具，把 **Codex** 和 **Claude Code** 兩家的額度放在同一個面板：一眼看完用量與重置時間、快用完時 Telegram 主動提醒、Claude token 過期自動續期。
 
-本機執行、資料不出門：用量數字直接讀自本機的 Codex app-server 與 Claude Code 登入憑證，不經過任何第三方伺服器。
+核心理念：**誰有用量就用誰**——訂閱了不只一家 AI coding agent 的人，額度調度不該靠自己記。
 
-## 功能
+| Now | 24h | Alerts |
+|---|---|---|
+| ![Now](docs/screenshots/now.png) | ![24h](docs/screenshots/24h.png) | ![Alerts](docs/screenshots/alerts.png) |
 
-- **系統匣常駐**：左鍵點圖示彈出面板，顯示 Codex／Claude 的 5 小時與每週額度、已用百分比、重置時間。
-- **三個分頁**：`Now`（即時用量）、`24h`（近 24 小時峰值走勢）、`Alerts`（Telegram 警報設定）。
-- **Telegram 警報**：用量跨過 50%／85%／95% 門檻時推播通知，附文字版用量長條圖報表；同一額度週期不重複轟炸。
-- **Claude token 自動刷新**：Claude Code 的 OAuth token 每 8 小時過期，UsageTray 會自動用 refresh token 換新並寫回，不用手動重新登入。
-- **開機自動啟動**：安裝後第一次執行即自動註冊。
+## 跟其他用量工具不一樣的地方
+
+市面上的用量顯示工具大多只做單一家、只做「顯示」。UsageTray 的差異：
+
+- **跨兩家**：Codex（5 小時＋每週）與 Claude Code（5 小時＋每週＋模型 Scoped）同框比較，額度調度一眼定案。
+- **會主動找你，不用你去看**：用量跨過 50%／85%／95% 門檻時 Telegram 推播中文報表（含文字長條圖）；在手機上傳 `/usage` 給 bot 也能隨時反查目前用量——人不在電腦前也掌握額度。
+- **Claude token 自動續期，連 CLI 一起受惠**：Claude Code 的 OAuth token 每 8 小時過期，UsageTray 自動用 refresh token 換新並「原子寫回」憑證檔（含並行競態防護與失敗冷卻），所以連 `claude` CLI 本身都不會再跳「請重新登入」。
+- **資料不出門**：用量直接讀本機的 Codex app-server 與 Claude OAuth 憑證，不經第三方伺服器；bot token 用 Windows DPAPI 加密落地；所有輸出經過淨化，token 永不出現在 log 或訊息裡。
+- **輕**：Tauri 打包，安裝檔 2.5 MB，常駐記憶體個位數 MB 等級。
+- **歷史留檔可分析**：每一筆讀數都寫進本機 JSONL（`%APPDATA%\UsageTray\snapshots.jsonl`），要做用量習慣分析隨時有原始資料。
+
+## 功能一覽
+
+- 系統匣常駐，左鍵點圖示彈出面板；開機自動啟動。
+- `Now`：兩家各額度視窗的已用百分比、重置時間，即時刷新。
+- `24h`：近 24 小時的讀數筆數與各視窗峰值。
+- `Alerts`：Telegram bot 設定（貼 token、自動偵測 chat、測試發送）與門檻推播。
+- Telegram 雙向：跨門檻主動推播；傳 `/usage` 隨時反查（約 2 分鐘內回覆）。
 
 ## 系統需求
 
 - Windows 10/11（x64）
-- [Python 3.10+](https://www.python.org/downloads/)，且 `python` 在 PATH 中（收集器為 Python 腳本，全部使用標準函式庫，無需 pip 安裝任何套件）
+- [Python 3.10+](https://www.python.org/downloads/)，且 `python` 在 PATH 中（收集器為純標準函式庫 Python 腳本，無需 pip 安裝套件）
 - 至少安裝並登入其中一個：
-  - [Codex CLI](https://github.com/openai/codex)（讀取 `codex app-server` 的額度資料）
-  - [Claude Code](https://code.claude.com/docs/en/overview)（讀取 OAuth 憑證查詢額度）
+  - [Codex CLI](https://github.com/openai/codex)（透過 `codex app-server` 讀額度）
+  - [Claude Code](https://code.claude.com/docs/en/overview)（透過 OAuth 憑證查額度）
 
 ## 安裝
 
 1. 執行 `release/UsageTray_0.1.0_x64-setup.exe`（或自行建置，見下）。
-2. 從開始選單啟動 UsageTray，系統匣會出現圖示；之後開機自動啟動。
+2. 從開始選單啟動 UsageTray，系統匣出現圖示；之後開機自動啟動。
 
 ### Telegram 警報設定（選用）
 
 1. 跟 [@BotFather](https://t.me/BotFather) 建一個 bot，取得 bot token。
 2. 對你的 bot 傳一則任意訊息。
-3. 開 UsageTray 的 `Alerts` 分頁，貼上 token，按偵測即可自動找到你的 chat。
-4. Token 以 Windows DPAPI 加密存於 `%APPDATA%\UsageTray\`，不會以明文落地。
+3. 開 UsageTray 的 `Alerts` 分頁，貼上 token → `Find my chat` 自動偵測 → 勾選啟用。
+4. Token 以 Windows DPAPI 加密存於 `%APPDATA%\UsageTray\`，不以明文落地。
 
 ## 從原始碼建置
 
@@ -45,18 +60,12 @@ npm run tauri build
 
 ## 架構
 
-- **外殼**：Tauri v2（Rust）＋ React/TypeScript 前端，視窗約 336×400，無邊框貼齊系統匣。
-- **收集器**：`collectors/collect_usage_tray.py` 讀取兩個資料來源並輸出淨化後的 JSON（詳見 [docs/COLLECTOR-CONTRACT.md](docs/COLLECTOR-CONTRACT.md)）：
+- **外殼**：Tauri v2（Rust）＋ React/TypeScript 前端，336×400 無邊框視窗貼齊系統匣。
+- **收集器**：`collectors/collect_usage_tray.py` 讀兩個資料來源、輸出淨化 JSON（契約見 [docs/COLLECTOR-CONTRACT.md](docs/COLLECTOR-CONTRACT.md)）：
   - Codex：本機 `codex app-server` 的 `account/rateLimits/read` JSON-RPC。
-  - Claude：`%USERPROFILE%\.claude\.credentials.json` 的 OAuth token 呼叫官方 usage API；過期時自動 refresh 並原子寫回（含競態防護與 10 分鐘失敗冷卻）。
-- **歷史**：`collectors/history_snapshot.py` 將快照寫入 `%APPDATA%\UsageTray\snapshots.jsonl`（見 [docs/SNAPSHOT-HISTORY.md](docs/SNAPSHOT-HISTORY.md)）。
-- **警報**：`collectors/telegram_bridge.py` 處理門檻判斷、去重與 Telegram 推播。
-
-## 安全邊界
-
-- 任何 token、cookie、session key 永不寫入 log、輸出或設定檔。
-- 收集器輸出只含聚合後的百分比與時間，錯誤訊息會先移除敏感字串。
-- 對 `.credentials.json` 的寫回僅限 token 刷新，原子寫入且保留其他欄位。
+  - Claude：讀 `%USERPROFILE%\.claude\.credentials.json` 呼叫官方 usage API；過期自動 refresh 並原子寫回。
+- **歷史**：`collectors/history_snapshot.py` 寫入 `%APPDATA%\UsageTray\snapshots.jsonl`（設計見 [docs/SNAPSHOT-HISTORY.md](docs/SNAPSHOT-HISTORY.md)）。
+- **警報與指令**：`collectors/telegram_bridge.py` 處理門檻去重、推播與 `/usage` 回覆。
 
 ## 測試
 

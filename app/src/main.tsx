@@ -352,7 +352,7 @@ function AlertsPanel({
       </label>
 
       <div className="alerts-copy compact">
-        <p>Thresholds {settings?.thresholds?.join("% / ") ?? "50% / 85% / 95%"}% · source alerts on</p>
+        <p>Thresholds {settings?.thresholds?.join("% / ") ?? "50% / 85% / 95"}% · source alerts on</p>
       </div>
 
       <div className="button-row">

@@ -24,6 +24,7 @@ APP_DIR_NAME = "UsageTray"
 SETTINGS_FILE = "telegram-settings.json"
 TOKEN_FILE = "telegram-token.bin"
 STATE_FILE = "telegram-alert-state.json"
+UPDATES_STATE_FILE = "telegram-updates-state.json"
 THRESHOLDS = [50, 85, 95]
 DPAPI_FLAGS = 0x1
 LOCAL_TZ = dt.datetime.now().astimezone().tzinfo
@@ -87,6 +88,10 @@ def state_path() -> Path:
     return app_dir() / STATE_FILE
 
 
+def updates_state_path() -> Path:
+    return app_dir() / UPDATES_STATE_FILE
+
+
 def read_json_stdin() -> dict[str, Any]:
     raw = sys.stdin.buffer.read()
     if not raw:
@@ -135,6 +140,24 @@ def load_state() -> dict[str, Any]:
 
 def save_state(data: dict[str, Any]) -> None:
     state_path().write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+
+
+def load_updates_state() -> dict[str, int]:
+    path = updates_state_path()
+    if not path.exists():
+        return {"last_update_id": 0}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"last_update_id": 0}
+    last_update_id = data.get("last_update_id") if isinstance(data, dict) else None
+    if not isinstance(last_update_id, int):
+        return {"last_update_id": 0}
+    return {"last_update_id": last_update_id}
+
+
+def save_updates_state(data: dict[str, int]) -> None:
+    updates_state_path().write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
 def blob_from_bytes(data: bytes) -> tuple[DATA_BLOB, Any]:
@@ -301,10 +324,29 @@ def escape_code_block(text: str) -> str:
 def alert_cycle_id(window: dict[str, Any]) -> str:
     parsed = parse_dt(window.get("reset_at"))
     if parsed:
-        # Claude's OAuth endpoint may return tiny microsecond differences per poll.
-        # Minute precision is enough to identify the same quota reset cycle.
         return f"reset:{parsed.strftime('%Y-%m-%dT%H:%M')}"
     return f"duration:{window.get('window_duration_mins')}"
+
+
+# Claude's OAuth endpoint jitters reset_at by seconds between polls, which can
+# flip the minute-precision cycle id across a minute boundary and fake a "new
+# cycle". Real new cycles differ by hours, so anything within this window is
+# treated as the same cycle.
+CYCLE_TOLERANCE_MINS = 30
+
+
+def same_cycle(stored: Any, current: str) -> bool:
+    if not isinstance(stored, str):
+        return False
+    if stored == current:
+        return True
+    if not (stored.startswith("reset:") and current.startswith("reset:")):
+        return False
+    a = parse_dt(stored[len("reset:"):])
+    b = parse_dt(current[len("reset:"):])
+    if not a or not b:
+        return False
+    return abs((a - b).total_seconds()) <= CYCLE_TOLERANCE_MINS * 60
 
 
 def reached_thresholds(used: float) -> list[int]:
@@ -350,6 +392,18 @@ def error_message(snapshot: dict[str, Any], agent: str, code: str, text: str | N
     return "\n\n".join(
         [
             escape_markdown_v2(header),
+            f"```\n{escape_code_block(report)}\n```",
+            escape_markdown_v2(footer),
+        ]
+    )
+
+
+def usage_command_message(snapshot: dict[str, Any]) -> str:
+    report = "\n".join(build_report_lines(snapshot))
+    footer = f"更新：{format_stamp(snapshot.get('captured_at'))}"
+    return "\n\n".join(
+        [
+            escape_markdown_v2("📊 目前用量"),
             f"```\n{escape_code_block(report)}\n```",
             escape_markdown_v2(footer),
         ]
@@ -544,7 +598,11 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
             key = f"{agent_name}:{window_name}"
             cycle = alert_cycle_id(window)
             slot = threshold_state.get(key)
-            if not isinstance(slot, dict) or slot.get("cycle") != cycle:
+            if isinstance(slot, dict) and same_cycle(slot.get("cycle"), cycle):
+                # Same cycle (allowing reset_at jitter): track the latest id so
+                # slow drift never accumulates past the tolerance.
+                slot["cycle"] = cycle
+            else:
                 # New cycle (or first sight of this window): start empty and fall
                 # through so thresholds already crossed still notify once.
                 slot = {"cycle": cycle, "sent": []}
@@ -573,12 +631,77 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "sent": sent}
 
 
+def is_usage_command(text: Any) -> bool:
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    return stripped == "/usage" or stripped.startswith("/usage@")
+
+
+def action_poll_commands(payload: dict[str, Any]) -> dict[str, Any]:
+    settings = load_settings()
+    if not settings.get("enabled"):
+        return {"ok": True, "handled": 0, "reason": "disabled"}
+    token = load_token()
+    chat_id = settings.get("chat_id")
+    if not token or chat_id is None:
+        return {"ok": True, "handled": 0, "reason": "not_configured"}
+
+    snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else payload
+    if not isinstance(snapshot, dict):
+        raise RuntimeError("Invalid command payload.")
+
+    state = load_updates_state()
+    try:
+        updates = telegram_api(
+            token,
+            "getUpdates",
+            {"offset": str(state["last_update_id"] + 1), "timeout": "0"},
+        )
+    except Exception:  # noqa: BLE001
+        return {"ok": True, "handled": 0, "reason": "poll_failed"}
+
+    result = updates.get("result", [])
+    if not isinstance(result, list):
+        result = []
+
+    should_reply = False
+    for update in result:
+        if not isinstance(update, dict):
+            continue
+        update_id = update.get("update_id")
+        if isinstance(update_id, int):
+            state["last_update_id"] = max(state["last_update_id"], update_id)
+        message = update.get("message")
+        if not isinstance(message, dict):
+            continue
+        chat = message.get("chat")
+        if not isinstance(chat, dict):
+            continue
+        if str(chat.get("id")) != str(chat_id):
+            continue
+        if is_usage_command(message.get("text")):
+            should_reply = True
+
+    save_updates_state(state)
+    if should_reply:
+        send_message(
+            token,
+            str(chat_id),
+            usage_command_message(snapshot),
+            parse_mode="MarkdownV2",
+        )
+        return {"ok": True, "handled": 1}
+    return {"ok": True, "handled": 0}
+
+
 ACTIONS = {
     "load-settings": action_load_settings,
     "save-settings": action_save_settings,
     "discover-chat": action_discover_chat,
     "send-test": action_send_test,
     "process-alerts": action_process_alerts,
+    "poll-commands": action_poll_commands,
 }
 
 

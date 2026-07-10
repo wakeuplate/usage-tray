@@ -22,6 +22,7 @@ from typing import Any
 
 COLLECTOR_PATH = Path(__file__).with_name("collect_usage_tray.py")
 HISTORY_PATH = Path(__file__).with_name("history_snapshot.py")
+TELEGRAM_PATH = Path(__file__).with_name("telegram_bridge.py")
 PROJECT_ROOT = COLLECTOR_PATH.parent.parent
 SAMPLE_PATH = PROJECT_ROOT / "samples" / "collector-output-v0.sample.json"
 SCHEMA_PATH = PROJECT_ROOT / "schemas" / "collector-v0.schema.json"
@@ -86,6 +87,7 @@ class CollectorContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.collector = load_module("collect_usage_tray", COLLECTOR_PATH)
         cls.history = load_module("history_snapshot", HISTORY_PATH)
+        cls.telegram = load_module("telegram_bridge", TELEGRAM_PATH)
 
     def test_schema_version_is_v0(self) -> None:
         self.assertEqual(self.collector.SCHEMA_VERSION, "usage-tray.collector.v0")
@@ -635,6 +637,7 @@ class CollectorContractTests(unittest.TestCase):
             SCHEMA_PATH,
             APP_MAIN_PATH,
             TAURI_LIB_PATH,
+            TELEGRAM_PATH,
             HISTORY_SAMPLE_PATH,
         ]
 
@@ -642,6 +645,183 @@ class CollectorContractTests(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             for pattern in forbidden_patterns:
                 self.assertIsNone(re.search(pattern, source), f"{path}: {pattern}")
+
+    def test_telegram_usage_command_replies_and_advances_update_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sent: list[dict[str, Any]] = []
+
+            def fake_api(_token: str, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+                self.assertEqual(method, "getUpdates")
+                self.assertEqual(payload["offset"], "1")
+                self.assertEqual(payload["timeout"], "0")
+                return {
+                    "ok": True,
+                    "result": [
+                        {
+                            "update_id": 101,
+                            "message": {
+                                "chat": {"id": 12345},
+                                "text": "/usage",
+                            },
+                        }
+                    ],
+                }
+
+            def fake_send(token: str, chat_id: str, text: str, parse_mode: str | None = None) -> None:
+                sent.append({"token": token, "chat_id": chat_id, "text": text, "parse_mode": parse_mode})
+
+            with mock.patch.object(self.telegram, "app_dir", return_value=Path(tmp_dir)), mock.patch.object(
+                self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "12345"}
+            ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+                self.telegram, "telegram_api", side_effect=fake_api
+            ), mock.patch.object(
+                self.telegram, "send_message", side_effect=fake_send
+            ):
+                result = self.telegram.action_poll_commands({"snapshot": self.telegram_snapshot()})
+
+            state = json.loads((Path(tmp_dir) / "telegram-updates-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, {"ok": True, "handled": 1})
+            self.assertEqual(state["last_update_id"], 101)
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(sent[0]["chat_id"], "12345")
+            self.assertEqual(sent[0]["parse_mode"], "MarkdownV2")
+
+    def test_telegram_poll_ignores_other_chat_but_advances_update_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sent: list[dict[str, Any]] = []
+
+            def fake_api(_token: str, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+                self.assertEqual(method, "getUpdates")
+                self.assertEqual(payload["offset"], "1")
+                return {
+                    "ok": True,
+                    "result": [
+                        {
+                            "update_id": 202,
+                            "message": {
+                                "chat": {"id": 99999},
+                                "text": "/usage",
+                            },
+                        }
+                    ],
+                }
+
+            with mock.patch.object(self.telegram, "app_dir", return_value=Path(tmp_dir)), mock.patch.object(
+                self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "12345"}
+            ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+                self.telegram, "telegram_api", side_effect=fake_api
+            ), mock.patch.object(
+                self.telegram, "send_message", side_effect=lambda *args, **kwargs: sent.append({"args": args, "kwargs": kwargs})
+            ):
+                result = self.telegram.action_poll_commands({"snapshot": self.telegram_snapshot()})
+
+            state = json.loads((Path(tmp_dir) / "telegram-updates-state.json").read_text(encoding="utf-8"))
+            self.assertEqual(result, {"ok": True, "handled": 0})
+            self.assertEqual(state["last_update_id"], 202)
+            self.assertEqual(sent, [])
+
+    def test_telegram_second_poll_has_no_reply_when_offset_has_no_updates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sent: list[dict[str, Any]] = []
+            calls: list[dict[str, Any]] = []
+
+            def fake_api(_token: str, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+                self.assertEqual(method, "getUpdates")
+                calls.append(payload)
+                if len(calls) == 1:
+                    self.assertEqual(payload["offset"], "1")
+                    return {
+                        "ok": True,
+                        "result": [
+                            {
+                                "update_id": 301,
+                                "message": {
+                                    "chat": {"id": 12345},
+                                    "text": "/usage@UsageTrayBot",
+                                },
+                            }
+                        ],
+                    }
+                self.assertEqual(payload["offset"], "302")
+                return {"ok": True, "result": []}
+
+            with mock.patch.object(self.telegram, "app_dir", return_value=Path(tmp_dir)), mock.patch.object(
+                self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "12345"}
+            ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+                self.telegram, "telegram_api", side_effect=fake_api
+            ), mock.patch.object(
+                self.telegram, "send_message", side_effect=lambda *args, **kwargs: sent.append({"args": args, "kwargs": kwargs})
+            ):
+                first = self.telegram.action_poll_commands({"snapshot": self.telegram_snapshot()})
+                second = self.telegram.action_poll_commands({"snapshot": self.telegram_snapshot()})
+
+            self.assertEqual(first, {"ok": True, "handled": 1})
+            self.assertEqual(second, {"ok": True, "handled": 0})
+            self.assertEqual(len(sent), 1)
+            self.assertEqual(len(calls), 2)
+
+    def test_alert_reset_jitter_is_same_cycle_but_real_new_cycle_notifies(self) -> None:
+        def snapshot_with_reset(reset_at: str) -> dict[str, Any]:
+            return {
+                "captured_at": "2026-07-10T10:00:00Z",
+                "agents": {
+                    "claude": {
+                        "available": True,
+                        "windows": {
+                            "weekly_scoped": {
+                                "used_percent": 53.0,
+                                "remaining_percent": 47.0,
+                                "reset_at": reset_at,
+                                "window_duration_mins": 10080,
+                            }
+                        },
+                    }
+                },
+            }
+
+        base_cycle = self.telegram.alert_cycle_id({"reset_at": "2026-07-11T02:59:58Z"})
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sent: list[dict[str, Any]] = []
+            state_path = Path(tmp_dir) / "telegram-alert-state.json"
+            state_path.write_text(
+                json.dumps({"thresholds": {"claude:weekly_scoped": {"cycle": base_cycle, "sent": [50]}}, "errors": {}}),
+                encoding="utf-8",
+            )
+            with mock.patch.object(self.telegram, "app_dir", return_value=Path(tmp_dir)), mock.patch.object(
+                self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "12345"}
+            ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+                self.telegram, "send_message", side_effect=lambda *args, **kwargs: sent.append({"args": args})
+            ):
+                # reset_at jitter of ~90 seconds must NOT be treated as a new cycle.
+                jittered = self.telegram.action_process_alerts({"snapshot": snapshot_with_reset("2026-07-11T03:01:28Z")})
+                # A genuinely new cycle (hours later) must notify once again.
+                new_cycle = self.telegram.action_process_alerts({"snapshot": snapshot_with_reset("2026-07-11T08:01:28Z")})
+
+            self.assertEqual(jittered, {"ok": True, "sent": 0})
+            self.assertEqual(new_cycle, {"ok": True, "sent": 1})
+            self.assertEqual(len(sent), 1)
+
+    @staticmethod
+    def telegram_snapshot() -> dict[str, Any]:
+        return {
+            "captured_at": "2026-07-10T08:00:00Z",
+            "agents": {
+                "claude": {
+                    "available": True,
+                    "windows": {
+                        "five_hour": {"used_percent": 10, "reset_at": "2026-07-10T10:00:00Z"},
+                        "weekly": {"used_percent": 20, "reset_at": "2026-07-13T10:00:00Z"},
+                    },
+                },
+                "codex": {
+                    "available": True,
+                    "windows": {
+                        "five_hour": {"used_percent": 30, "reset_at": "2026-07-10T11:00:00Z"},
+                        "weekly": {"used_percent": 40, "reset_at": "2026-07-13T11:00:00Z"},
+                    },
+                },
+            },
+        }
 
 
 if __name__ == "__main__":

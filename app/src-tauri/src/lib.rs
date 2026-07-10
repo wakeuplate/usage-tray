@@ -58,6 +58,7 @@ fn collect_usage_blocking(app: AppHandle) -> Result<serde_json::Value, String> {
 
     let _ = save_history_snapshot(&app, &payload);
     let _ = process_telegram_alerts(&app, &payload);
+    let _ = poll_telegram_commands(&app, &payload);
     Ok(payload)
 }
 
@@ -171,6 +172,16 @@ fn process_telegram_alerts(app: &AppHandle, snapshot: &serde_json::Value) -> Res
         app,
         TELEGRAM_RELATIVE_PATH,
         "process-alerts",
+        &serde_json::json!({ "snapshot": snapshot }),
+    )
+    .map(|_| ())
+}
+
+fn poll_telegram_commands(app: &AppHandle, snapshot: &serde_json::Value) -> Result<(), String> {
+    run_python_json_script(
+        app,
+        TELEGRAM_RELATIVE_PATH,
+        "poll-commands",
         &serde_json::json!({ "snapshot": snapshot }),
     )
     .map(|_| ())
@@ -395,4 +406,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running UsageTray");
 }
-

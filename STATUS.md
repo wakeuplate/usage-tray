@@ -793,3 +793,31 @@ app restart, or new quota window), it seeded already-reached thresholds as
 through to the normal pending logic, which sends one message for the highest
 reached threshold. Verified live: state slot reset, one 95% alert delivered
 via the fixed code path (`{"ok": true, "sent": 1}`).
+
+### 32. Telegram two-way /usage command (2026-07-10)
+
+Telegram now supports a lightweight two-way command path without adding a
+long-polling process. Each collection cycle polls pending bot updates once,
+advances `telegram-updates-state.json`, and replies at most once when the
+configured chat asks for the current usage report.
+
+- New `poll-commands` bridge action uses Telegram `getUpdates` with
+  `timeout=0`, ignores unconfigured chats, and treats poll failures as a
+  non-fatal cycle result.
+- The Tauri collector cycle invokes `poll-commands` immediately after
+  `process-alerts`, using the same latest snapshot payload.
+- Contract tests cover configured-chat replies, ignored-chat update
+  advancement, and second-poll offset behavior.
+
+### 33. Reset-time jitter no longer re-fires alerts (2026-07-10, same day)
+
+After #31, the user was re-alerted "已達 50%" every 2-3 minutes. Cause:
+Claude reset_at jitters by seconds across polls; when it crosses a minute
+boundary the minute-precision cycle id flips (10:59 <-> 11:00) and each flip
+looked like a new cycle, which #31 now notifies for. Fix: `same_cycle()`
+compares reset-based cycle ids with a 30-minute tolerance (real cycles differ
+by hours) and tracks the latest id so drift cannot accumulate. Also fixed a
+double percent sign in the Alerts tab fallback text, spotted in a README
+screenshot. Regression test added (26 total). Alerts were temporarily
+disabled in settings during the fix to stop the spam; re-enabled after the
+fixed build was installed.
