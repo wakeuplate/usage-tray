@@ -644,6 +644,21 @@ EMPTY directories (no HEAD/objects) — the project has never actually been
 under version control; tooling that reported "git repo, branch HEAD" was
 fooled by the empty dir. Consider a real `git init` + initial commit.
 
+### 29. Autostart plugin and first release installer (2026-07-10, same day)
+
+- `tauri-plugin-autostart` 2.5.1 added; `lib.rs` registers it and calls
+  `app.autolaunch().enable()` in setup (errors ignored so a failed registry
+  write can never break app startup). Once the installed app is launched
+  once, it self-registers to start on every boot.
+- First real release build produced:
+  `app/src-tauri/target/release/bundle/nsis/UsageTray_0.1.0_x64-setup.exe`
+  (2.5 MB installer; bare exe 9.4 MB). Codex wrote the code changes; the
+  build itself ran in the main session because the Codex sandbox has no
+  network access for crates.io.
+- Not yet done: actually installing it (user's one click) and verifying the
+  installed app end-to-end (bundled collector scripts, tray behavior,
+  autostart after reboot, and tonight's natural token-expiry refresh).
+
 ## Current project state
 
 The project now has a working native Windows development path.
