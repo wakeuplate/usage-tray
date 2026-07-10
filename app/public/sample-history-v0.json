@@ -1,0 +1,102 @@
+[
+  {
+    "schema_version": "limit-lens.snapshot.v0",
+    "captured_at": "2026-07-08T16:00:00Z",
+    "agents": {
+      "codex": {
+        "available": true,
+        "source": "codex_app_server",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "primary", "used_percent": 18, "remaining_percent": 82, "reset_at": "2026-07-08T19:08:41Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "secondary", "used_percent": 34, "remaining_percent": 66, "reset_at": "2026-07-13T14:28:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      },
+      "claude": {
+        "available": true,
+        "source": "claude_code_oauth",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "five_hour", "used_percent": 22, "remaining_percent": 78, "reset_at": "2026-07-08T18:30:00Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "seven_day", "used_percent": 91, "remaining_percent": 9, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080},
+          "weekly_scoped": {"name": "weekly_scoped", "used_percent": 99, "remaining_percent": 1, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      }
+    }
+  },
+  {
+    "schema_version": "limit-lens.snapshot.v0",
+    "captured_at": "2026-07-08T19:00:00Z",
+    "agents": {
+      "codex": {
+        "available": true,
+        "source": "codex_app_server",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "primary", "used_percent": 47, "remaining_percent": 53, "reset_at": "2026-07-08T19:08:41Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "secondary", "used_percent": 38, "remaining_percent": 62, "reset_at": "2026-07-13T14:28:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      },
+      "claude": {
+        "available": true,
+        "source": "claude_code_oauth",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "five_hour", "used_percent": 58, "remaining_percent": 42, "reset_at": "2026-07-08T23:30:00Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "seven_day", "used_percent": 93, "remaining_percent": 7, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080},
+          "weekly_scoped": {"name": "weekly_scoped", "used_percent": 99, "remaining_percent": 1, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      }
+    }
+  },
+  {
+    "schema_version": "limit-lens.snapshot.v0",
+    "captured_at": "2026-07-08T22:00:00Z",
+    "agents": {
+      "codex": {
+        "available": true,
+        "source": "codex_app_server",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "primary", "used_percent": 9, "remaining_percent": 91, "reset_at": "2026-07-09T03:08:41Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "secondary", "used_percent": 41, "remaining_percent": 59, "reset_at": "2026-07-13T14:28:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      },
+      "claude": {
+        "available": true,
+        "source": "claude_code_oauth",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "five_hour", "used_percent": 13, "remaining_percent": 87, "reset_at": "2026-07-09T03:30:00Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "seven_day", "used_percent": 94, "remaining_percent": 6, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080},
+          "weekly_scoped": {"name": "weekly_scoped", "used_percent": 99, "remaining_percent": 1, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      }
+    }
+  },
+  {
+    "schema_version": "limit-lens.snapshot.v0",
+    "captured_at": "2026-07-09T00:00:00Z",
+    "agents": {
+      "codex": {
+        "available": true,
+        "source": "codex_app_server",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "primary", "used_percent": 5, "remaining_percent": 95, "reset_at": "2026-07-09T03:08:41Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "secondary", "used_percent": 42, "remaining_percent": 58, "reset_at": "2026-07-13T14:28:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      },
+      "claude": {
+        "available": true,
+        "source": "claude_code_oauth",
+        "error": null,
+        "windows": {
+          "five_hour": {"name": "five_hour", "used_percent": 13, "remaining_percent": 87, "reset_at": "2026-07-09T03:30:00Z", "reset_at_unix": null, "window_duration_mins": 300},
+          "weekly": {"name": "seven_day", "used_percent": 94, "remaining_percent": 6, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080},
+          "weekly_scoped": {"name": "weekly_scoped", "used_percent": 99, "remaining_percent": 1, "reset_at": "2026-07-11T03:00:00Z", "reset_at_unix": null, "window_duration_mins": 10080}
+        }
+      }
+    }
+  }
+]

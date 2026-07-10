@@ -1,0 +1,90 @@
+{
+  "schema_version": "limit-lens.collector.v0",
+  "captured_at": "2026-07-08T14:40:00Z",
+  "agents": {
+    "codex": {
+      "available": true,
+      "source": "codex_app_server",
+      "captured_at": "2026-07-08T14:40:00Z",
+      "error": null,
+      "diagnostics": {
+        "plan_type": "example",
+        "limit_name": "example",
+        "context_window": {
+          "used_tokens": 137827,
+          "total_tokens": 258000
+        }
+      },
+      "windows": {
+        "five_hour": {
+          "name": "primary",
+          "used_percent": 5.0,
+          "remaining_percent": 95.0,
+          "reset_at": "2026-07-08T19:08:41Z",
+          "reset_at_unix": 1783537721,
+          "window_duration_mins": 300
+        },
+        "weekly": {
+          "name": "secondary",
+          "used_percent": 31.0,
+          "remaining_percent": 69.0,
+          "reset_at": "2026-07-13T14:28:00Z",
+          "reset_at_unix": 1783952880,
+          "window_duration_mins": 10080
+        }
+      }
+    },
+    "claude": {
+      "available": true,
+      "source": "claude_code_oauth",
+      "captured_at": "2026-07-08T14:40:00Z",
+      "error": null,
+      "diagnostics": {
+        "scopes_count": 3,
+        "subscription_type_present": true,
+        "rate_limit_tier_present": true
+      },
+      "windows": {
+        "five_hour": {
+          "name": "five_hour",
+          "used_percent": 13.0,
+          "remaining_percent": 87.0,
+          "reset_at": "2026-07-08T14:30:00Z",
+          "reset_at_unix": null,
+          "window_duration_mins": 300
+        },
+        "weekly": {
+          "name": "seven_day",
+          "used_percent": 90.0,
+          "remaining_percent": 10.0,
+          "reset_at": "2026-07-11T03:00:00Z",
+          "reset_at_unix": null,
+          "window_duration_mins": 10080
+        },
+        "weekly_scoped": {
+          "name": "weekly_scoped",
+          "used_percent": 99.0,
+          "remaining_percent": 1.0,
+          "reset_at": "2026-07-11T03:00:00Z",
+          "reset_at_unix": null,
+          "window_duration_mins": 10080
+        }
+      },
+      "limits": [
+        {
+          "kind": "weekly_scoped",
+          "group": "example",
+          "percent": 99.0,
+          "severity": "warning",
+          "resets_at": "2026-07-11T03:00:00Z",
+          "is_active": true,
+          "scope": {
+            "model_display_name_present": true,
+            "surface_present": true
+          }
+        }
+      ],
+      "spend": null
+    }
+  }
+}

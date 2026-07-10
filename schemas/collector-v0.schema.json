@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://limit-lens.local/schemas/collector-v0.schema.json",
+  "title": "UsageTray Collector v0",
+  "type": "object",
+  "required": ["schema_version", "captured_at", "agents"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "const": "limit-lens.collector.v0"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codex": { "$ref": "#/$defs/agent" },
+        "claude": { "$ref": "#/$defs/agent" }
+      }
+    }
+  },
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "required": ["available", "source", "captured_at", "error", "diagnostics", "windows"],
+      "additionalProperties": true,
+      "properties": {
+        "available": { "type": "boolean" },
+        "source": { "type": "string" },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "error": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/error" }
+          ]
+        },
+        "diagnostics": { "type": "object" },
+        "windows": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/window" }
+        },
+        "limits": { "type": "array" },
+        "spend": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "object" }
+          ]
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "window": {
+      "type": "object",
+      "required": ["name", "used_percent", "remaining_percent", "reset_at", "reset_at_unix", "window_duration_mins"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "used_percent": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 0, "maximum": 100 }
+          ]
+        },
+        "remaining_percent": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 0, "maximum": 100 }
+          ]
+        },
+        "reset_at": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string" }
+          ]
+        },
+        "reset_at_unix": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "integer" }
+          ]
+        },
+        "window_duration_mins": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1 }
+          ]
+        }
+      }
+    }
+  }
+}

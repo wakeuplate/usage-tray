@@ -1,0 +1,7 @@
+node_modules/
+dist/
+app/src-tauri/target/
+__pycache__/
+*.log
+live_test*.json
+live_snapshot*.json
