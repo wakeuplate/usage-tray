@@ -623,6 +623,22 @@ also gets 429, proving the limit is per-IP, not per-token). Next attempt
 should wait an hour or more; the failure path (error reported, credentials
 file untouched, cooldown recorded) is verified live.
 
+Follow-up (same day, afternoon): `platform.claude.com/v1/oauth/token` was
+still wrong — it (and claude.ai / console.anthropic.com) answers HTTP 429 to
+every request as an anti-abuse mask. Endpoint-base sweep with a bogus token
+showed the real token endpoint is **`https://api.anthropic.com/v1/oauth/token`**
+(returns a proper `invalid_grant`); constant corrected. Two more findings:
+running the official `claude` CLI once made it refresh the token itself
+successfully from the same machine/IP (so the user's "daily re-login" was
+never necessary — the CLI self-refreshes; only UsageTray's error message
+suggested re-login), and the collector was verified live against the fresh
+token (available=true, real usage data, refresh correctly skipped while the
+token is valid). The expired-token→refresh→write-back path is verified in
+unit tests but not yet live: forcing `expiresAt` into the past on the real
+credentials file was blocked by the permission layer (user red line); either
+the user approves that one-off forced test, or natural expiry (~8 h) will
+exercise it during normal app polling.
+
 Separate discovery: `limit-lens/.git` and `D:\claude-projects\.git` are both
 EMPTY directories (no HEAD/objects) — the project has never actually been
 under version control; tooling that reported "git repo, branch HEAD" was

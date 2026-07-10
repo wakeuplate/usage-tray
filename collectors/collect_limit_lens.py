@@ -24,7 +24,7 @@ from typing import Any
 
 SCHEMA_VERSION = "limit-lens.collector.v0"
 CLAUDE_USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
-CLAUDE_REFRESH_ENDPOINT = "https://platform.claude.com/v1/oauth/token"
+CLAUDE_REFRESH_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
 CLAUDE_REFRESH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 CLAUDE_BETA = "oauth-2025-04-20"
 CLAUDE_USER_AGENT = "claude-code/2.1.199"
