@@ -4,9 +4,9 @@
 
 核心理念：**誰有用量就用誰**——訂閱了不只一家 AI coding agent 的人，額度調度不該靠自己記。
 
-| Now | 24h | Alerts |
+| Now | Trends | Alerts |
 |---|---|---|
-| ![Now](docs/screenshots/now.png) | ![24h](docs/screenshots/24h.png) | ![Alerts](docs/screenshots/alerts.png) |
+| ![Now](docs/screenshots/now.png) | ![Trends](docs/screenshots/24h.png) | ![Alerts](docs/screenshots/alerts.png) |
 
 ## 跟其他用量工具不一樣的地方
 
@@ -21,11 +21,11 @@
 
 ## 功能一覽
 
-- 系統匣常駐，左鍵點圖示彈出面板；開機自動啟動。
-- `Now`：兩家各額度視窗的已用百分比、重置時間，即時刷新。
-- `24h`：近 24 小時的讀數筆數與各視窗峰值。
+- 系統匣常駐，左鍵點圖示彈出面板；hover 顯示兩家 5 小時額度與剩餘時間；開機自動啟動。
+- `Now`：Claude、Codex 各額度視窗的已用百分比、重置時間，即時刷新。
+- `Trends`：兩張走勢圖——5 小時額度（近 24 小時）與每週額度（近 7 天）——Claude／Codex 同框疊圖對比，圖例帶目前值。
 - `Alerts`：Telegram bot 設定（貼 token、自動偵測 chat、測試發送）與門檻推播。
-- Telegram 雙向：跨門檻主動推播；傳 `/usage` 隨時反查（約 2 分鐘內回覆）。
+- Telegram 雙向：跨門檻主動推播（同一輪多個門檻合併成一則）；傳 `/usage` 隨時反查（約 2 分鐘內回覆）。
 
 ## 系統需求
 
@@ -37,7 +37,7 @@
 
 ## 安裝
 
-1. 執行 `release/UsageTray_0.1.0_x64-setup.exe`（或自行建置，見下）。
+1. 從 [Releases](https://github.com/wakeuplate/usage-tray/releases) 下載最新的 `UsageTray_x.y.z_x64-setup.exe`（或自行建置，見下），執行安裝。
 2. 從開始選單啟動 UsageTray，系統匣出現圖示；之後開機自動啟動。
 
 ### Telegram 警報設定（選用）
