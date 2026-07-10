@@ -1,8 +1,8 @@
-﻿# Limit Lens collectors
+# UsageTray collectors
 
-This folder holds the first minimal data collector and history-snapshot prototype for Limit Lens.
+This folder holds the first minimal data collector and history-snapshot prototype for UsageTray.
 
-## `collect_limit_lens.py`
+## `collect_usage_tray.py`
 
 Reads the two confirmed primary data sources and writes one sanitized JSON object to stdout:
 
@@ -20,7 +20,7 @@ Safety rules:
 Run from PowerShell:
 
 ```powershell
-python .\collectors\collect_limit_lens.py
+python .\collectors\collect_usage_tray.py
 ```
 
 ## `history_snapshot.py`
@@ -60,7 +60,7 @@ python .\collectors\history_snapshot.py --input .\samples\collector-output-v0.sa
 Run the local contract checks without live Codex/Claude calls:
 
 ```powershell
-$env:PYTHONDONTWRITEBYTECODE='1'; python .\collectors\test_collect_limit_lens_contract.py
+$env:PYTHONDONTWRITEBYTECODE='1'; python .\collectors\test_collect_usage_tray_contract.py
 ```
 
 Current checks cover:
@@ -89,7 +89,7 @@ Expected top-level collector shape:
 
 ```json
 {
-  "schema_version": "limit-lens.collector.v0",
+  "schema_version": "usage-tray.collector.v0",
   "captured_at": "2026-07-08T00:00:00.0000000Z",
   "agents": {
     "codex": {

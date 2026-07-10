@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small contract checks for the Limit Lens collector.
+"""Small contract checks for the UsageTray collector.
 
 These tests avoid live Codex/Claude calls. They check the local helper shapes
 that the future UI will depend on.
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 
-COLLECTOR_PATH = Path(__file__).with_name("collect_limit_lens.py")
+COLLECTOR_PATH = Path(__file__).with_name("collect_usage_tray.py")
 HISTORY_PATH = Path(__file__).with_name("history_snapshot.py")
 PROJECT_ROOT = COLLECTOR_PATH.parent.parent
 SAMPLE_PATH = PROJECT_ROOT / "samples" / "collector-output-v0.sample.json"
@@ -84,12 +84,12 @@ def http_error(url: str, code: int, reason: str, body: dict[str, Any] | str) -> 
 class CollectorContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.collector = load_module("collect_limit_lens", COLLECTOR_PATH)
+        cls.collector = load_module("collect_usage_tray", COLLECTOR_PATH)
         cls.history = load_module("history_snapshot", HISTORY_PATH)
 
     def test_schema_version_is_v0(self) -> None:
-        self.assertEqual(self.collector.SCHEMA_VERSION, "limit-lens.collector.v0")
-        self.assertEqual(self.history.SNAPSHOT_SCHEMA_VERSION, "limit-lens.snapshot.v0")
+        self.assertEqual(self.collector.SCHEMA_VERSION, "usage-tray.collector.v0")
+        self.assertEqual(self.history.SNAPSHOT_SCHEMA_VERSION, "usage-tray.snapshot.v0")
 
     def test_usage_window_shape_and_remaining_percent(self) -> None:
         window = self.collector.usage_window(
@@ -490,7 +490,7 @@ class CollectorContractTests(unittest.TestCase):
     def test_sample_output_shape(self) -> None:
         sample = json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
 
-        self.assertEqual(sample["schema_version"], "limit-lens.collector.v0")
+        self.assertEqual(sample["schema_version"], "usage-tray.collector.v0")
         self.assertIn("captured_at", sample)
         self.assertEqual(set(sample["agents"].keys()), {"codex", "claude"})
 
@@ -518,8 +518,8 @@ class CollectorContractTests(unittest.TestCase):
 
         snapshot = self.history.sanitize_collector_snapshot(sample)
 
-        self.assertEqual(snapshot["schema_version"], "limit-lens.snapshot.v0")
-        self.assertEqual(snapshot["collector_schema_version"], "limit-lens.collector.v0")
+        self.assertEqual(snapshot["schema_version"], "usage-tray.snapshot.v0")
+        self.assertEqual(snapshot["collector_schema_version"], "usage-tray.collector.v0")
         self.assertNotIn("credential_path", snapshot["agents"]["claude"])
         self.assertNotIn("diagnostics", snapshot["agents"]["claude"])
         self.assertNotIn("limits", snapshot["agents"]["claude"])
@@ -539,7 +539,7 @@ class CollectorContractTests(unittest.TestCase):
 
         self.assertEqual(len(lines), 1)
         loaded = json.loads(lines[0])
-        self.assertEqual(loaded["schema_version"], "limit-lens.snapshot.v0")
+        self.assertEqual(loaded["schema_version"], "usage-tray.snapshot.v0")
 
     def test_history_skips_unchanged_snapshot_inside_interval(self) -> None:
         sample = json.loads(SAMPLE_PATH.read_text(encoding="utf-8"))
@@ -601,13 +601,13 @@ class CollectorContractTests(unittest.TestCase):
 
         self.assertTrue(wrote)
         self.assertEqual(len(lines), 2)
-        self.assertEqual(json.loads(lines[-1])["schema_version"], "limit-lens.snapshot.v0")
+        self.assertEqual(json.loads(lines[-1])["schema_version"], "usage-tray.snapshot.v0")
 
     def test_json_schema_file_is_parseable(self) -> None:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(schema["title"], "UsageTray Collector v0")
-        self.assertEqual(schema["properties"]["schema_version"]["const"], "limit-lens.collector.v0")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], "usage-tray.collector.v0")
         self.assertIn("agent", schema["$defs"])
         self.assertIn("window", schema["$defs"])
 
@@ -616,7 +616,7 @@ class CollectorContractTests(unittest.TestCase):
 
         self.assertGreater(len(history), 0)
         for snapshot in history:
-            self.assertEqual(snapshot["schema_version"], "limit-lens.snapshot.v0")
+            self.assertEqual(snapshot["schema_version"], "usage-tray.snapshot.v0")
             self.assertIn("captured_at", snapshot)
             self.assertIn("agents", snapshot)
 

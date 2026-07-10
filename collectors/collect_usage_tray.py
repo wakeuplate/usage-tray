@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Limit Lens datasource collector.
+"""Minimal UsageTray datasource collector.
 
 The collector prints sanitized JSON to stdout. It never prints bearer
 credentials and only refreshes Claude OAuth tokens when needed.
@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "limit-lens.collector.v0"
+SCHEMA_VERSION = "usage-tray.collector.v0"
 CLAUDE_USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 CLAUDE_REFRESH_ENDPOINT = "https://api.anthropic.com/v1/oauth/token"
 CLAUDE_REFRESH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
@@ -364,7 +364,7 @@ def start_reader(stream: Any) -> queue.Queue[str]:
             for line in stream:
                 lines.put(line.rstrip("\n"))
         finally:
-            lines.put("__LIMIT_LENS_EOF__")
+            lines.put("__USAGE_TRAY_EOF__")
 
     threading.Thread(target=read, daemon=True).start()
     return lines
@@ -385,7 +385,7 @@ def wait_for_response(
                 break
             continue
 
-        if line == "__LIMIT_LENS_EOF__":
+        if line == "__USAGE_TRAY_EOF__":
             break
         if not line.strip():
             continue
@@ -755,7 +755,7 @@ def parse_args() -> argparse.Namespace:
     default_codex = str(Path(os.environ.get("APPDATA", "")) / "npm" / "codex.cmd")
     default_claude = str(Path.home() / ".claude" / ".credentials.json")
     default_refresh_state = default_refresh_state_path()
-    parser = argparse.ArgumentParser(description="Collect sanitized Limit Lens datasource snapshots.")
+    parser = argparse.ArgumentParser(description="Collect sanitized UsageTray datasource snapshots.")
     parser.add_argument("--codex-command", default=default_codex)
     parser.add_argument("--claude-credentials", default=default_claude)
     parser.add_argument("--refresh-state-file", default=str(default_refresh_state) if default_refresh_state else None)

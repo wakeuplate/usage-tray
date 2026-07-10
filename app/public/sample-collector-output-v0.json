@@ -1,5 +1,5 @@
 {
-  "schema_version": "limit-lens.collector.v0",
+  "schema_version": "usage-tray.collector.v0",
   "captured_at": "2026-07-08T14:40:00Z",
   "agents": {
     "codex": {

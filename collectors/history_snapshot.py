@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Sanitize collector output into history snapshots.
 
 This module is intentionally small: it does not call Codex, Claude, or any
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 
-SNAPSHOT_SCHEMA_VERSION = "limit-lens.snapshot.v0"
+SNAPSHOT_SCHEMA_VERSION = "usage-tray.snapshot.v0"
 DEFAULT_MIN_INTERVAL_SEC = 300
 SAFE_AGENT_KEYS = {"available", "source", "captured_at", "error", "windows"}
 SAFE_WINDOW_KEYS = {
@@ -184,7 +184,7 @@ def append_snapshot_if_needed(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Write sanitized Limit Lens snapshot JSONL.")
+    parser = argparse.ArgumentParser(description="Write sanitized UsageTray snapshot JSONL.")
     parser.add_argument("--input", help="Collector JSON file. Reads stdin when omitted.")
     parser.add_argument("--output", required=True, help="JSONL output path.")
     parser.add_argument(

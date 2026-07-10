@@ -545,9 +545,10 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
             cycle = alert_cycle_id(window)
             slot = threshold_state.get(key)
             if not isinstance(slot, dict) or slot.get("cycle") != cycle:
-                slot = {"cycle": cycle, "sent": reached_thresholds(float(used))}
+                # New cycle (or first sight of this window): start empty and fall
+                # through so thresholds already crossed still notify once.
+                slot = {"cycle": cycle, "sent": []}
                 threshold_state[key] = slot
-                continue
             sent_marks = slot.get("sent")
             if not isinstance(sent_marks, list):
                 sent_marks = []

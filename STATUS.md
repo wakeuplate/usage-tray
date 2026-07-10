@@ -772,6 +772,24 @@ Not started:
 - Installer/autostart.
 - Notification/warning thresholds.
 - Deep fallback sources.
+### 30. Repo rename to usage-tray (2026-07-10)
 
+Repo-internal rename completed from `limit-lens` to `usage-tray` without
+renaming the top-level `D:\claude-projects\limit-lens` folder.
 
+- Collector files renamed to `collectors/collect_usage_tray.py` and
+  `collectors/test_collect_usage_tray_contract.py`.
+- Cargo package/lib identifiers, app package name, Tauri bundled resource
+  paths, collector schema markers, EOF marker, samples, and live docs were
+  updated to UsageTray / `usage-tray`.
+- Folder rename and rebuild remain for the main session.
 
+### 31. Startup-seeding no longer swallows threshold alerts (2026-07-10, same day)
+
+User crossed 50%/85%/95% on the Claude 5-hour window with no Telegram alert.
+Root cause: when `process-alerts` first sees a window cycle (fresh install,
+app restart, or new quota window), it seeded already-reached thresholds as
+"sent" without notifying. Fixed: new cycles seed an empty sent list and fall
+through to the normal pending logic, which sends one message for the highest
+reached threshold. Verified live: state slot reset, one 95% alert delivered
+via the fixed code path (`{"ok": true, "sent": 1}`).

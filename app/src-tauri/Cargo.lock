@@ -1928,7 +1928,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "limit-lens"
+name = "usage-tray"
 version = "0.1.0"
 dependencies = [
  "serde",

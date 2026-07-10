@@ -1,4 +1,4 @@
-# Limit Lens Windows Build
+# UsageTray Windows Build
 
 Updated: 2026-07-09
 
@@ -42,13 +42,13 @@ cd D:\claude-projects\limit-lens\app
 
 Expected behavior:
 
-1. Limit Lens starts hidden.
+1. UsageTray starts hidden.
 2. A tray icon appears.
 3. Left click opens the compact panel next to the tray.
 4. Clicking elsewhere hides the panel.
-5. Right click shows **Show Limit Lens** and **Quit**.
+5. Right click shows **Show UsageTray** and **Quit**.
 6. The tooltip shows Codex and Claude 5-hour remaining percentages.
-7. History is written to `%APPDATA%\LimitLens\snapshots.jsonl`.
+7. History is written to `%APPDATA%\UsageTray\snapshots.jsonl`.
 
 ## Build the installer
 
@@ -75,4 +75,4 @@ Before final runtime verification, run:
 & "$env:USERPROFILE\.local\bin\claude.exe" auth login
 ```
 
-Limit Lens never stores the Claude access token. It only reads the existing Claude Code credential when collecting usage.
+UsageTray never stores the Claude access token. It only reads the existing Claude Code credential when collecting usage.

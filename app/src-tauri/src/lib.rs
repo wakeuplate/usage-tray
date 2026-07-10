@@ -1,4 +1,4 @@
-﻿use std::collections::VecDeque;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -11,10 +11,10 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
-const COLLECTOR_RELATIVE_PATH: &str = "collectors\\collect_limit_lens.py";
+const COLLECTOR_RELATIVE_PATH: &str = "collectors\\collect_usage_tray.py";
 const HISTORY_RELATIVE_PATH: &str = "collectors\\history_snapshot.py";
 const TELEGRAM_RELATIVE_PATH: &str = "collectors\\telegram_bridge.py";
-const TRAY_ID: &str = "limit-lens-tray";
+const TRAY_ID: &str = "usage-tray-tray";
 
 fn python_command() -> Command {
     let mut command = Command::new("python");

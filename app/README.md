@@ -1,10 +1,10 @@
-# Limit Lens App Shell
+# UsageTray App Shell
 
 This folder contains the first Tauri tray-shell prototype.
 
 Current intent:
 
-- keep the real datasource logic in `../collectors/collect_limit_lens.py`;
+- keep the real datasource logic in `../collectors/collect_usage_tray.py`;
 - expose Tauri commands for live usage, recent history, and tray tooltip updates;
 - show a compact popup with horizontal usage bars;
 - save sanitized JSONL history under `%APPDATA%\LimitLens\snapshots.jsonl`;
@@ -62,7 +62,7 @@ After installing the `Desktop development with C++` workload, run:
 - Left click opens or closes the compact panel.
 - Right click opens the Show/Quit menu.
 - The panel is positioned next to the tray icon and hides when it loses focus.
-- Starting Limit Lens again focuses the existing instance instead of creating another tray icon.
+- Starting UsageTray again focuses the existing instance instead of creating another tray icon.
 - Tooltip shows current Codex and Claude 5-hour remaining percentages.
 - A background reading is taken every 5 minutes.
 

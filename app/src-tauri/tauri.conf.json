@@ -45,7 +45,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../collectors/collect_limit_lens.py": "collectors/collect_limit_lens.py",
+      "../../collectors/collect_usage_tray.py": "collectors/collect_usage_tray.py",
       "../../collectors/history_snapshot.py": "collectors/history_snapshot.py",
       "../../collectors/telegram_bridge.py": "collectors/telegram_bridge.py"
     }

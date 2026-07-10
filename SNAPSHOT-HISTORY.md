@@ -1,8 +1,8 @@
-﻿# Limit Lens Snapshot History
+# UsageTray Snapshot History
 
 Updated: 2026-07-08 22:40:00 +08:00
 
-This document defines how Limit Lens should save usage history safely.
+This document defines how UsageTray should save usage history safely.
 
 Plain-language meaning: the collector reads the meters. Snapshot history is the notebook that records only safe meter readings over time.
 
@@ -58,7 +58,7 @@ JSONL means one JSON object per line.
 Example:
 
 ```jsonl
-{"schema_version":"limit-lens.snapshot.v0","captured_at":"2026-07-08T14:40:00Z","agents":{"codex":{"available":true,"source":"codex_app_server","windows":{"five_hour":{"used_percent":5.0,"remaining_percent":95.0,"reset_at":"2026-07-08T19:08:41Z"},"weekly":{"used_percent":31.0,"remaining_percent":69.0,"reset_at":"2026-07-13T14:28:00Z"}}},"claude":{"available":true,"source":"claude_code_oauth","windows":{"five_hour":{"used_percent":13.0,"remaining_percent":87.0,"reset_at":"2026-07-08T14:30:00Z"},"weekly":{"used_percent":90.0,"remaining_percent":10.0,"reset_at":"2026-07-11T03:00:00Z"},"weekly_scoped":{"used_percent":99.0,"remaining_percent":1.0,"reset_at":"2026-07-11T03:00:00Z"}}}}}
+{"schema_version":"usage-tray.snapshot.v0","captured_at":"2026-07-08T14:40:00Z","agents":{"codex":{"available":true,"source":"codex_app_server","windows":{"five_hour":{"used_percent":5.0,"remaining_percent":95.0,"reset_at":"2026-07-08T19:08:41Z"},"weekly":{"used_percent":31.0,"remaining_percent":69.0,"reset_at":"2026-07-13T14:28:00Z"}}},"claude":{"available":true,"source":"claude_code_oauth","windows":{"five_hour":{"used_percent":13.0,"remaining_percent":87.0,"reset_at":"2026-07-08T14:30:00Z"},"weekly":{"used_percent":90.0,"remaining_percent":10.0,"reset_at":"2026-07-11T03:00:00Z"},"weekly_scoped":{"used_percent":99.0,"remaining_percent":1.0,"reset_at":"2026-07-11T03:00:00Z"}}}}}
 ```
 
 The actual file should be compact JSON, one line per snapshot.
@@ -68,7 +68,7 @@ The actual file should be compact JSON, one line per snapshot.
 Snapshot schema version:
 
 ```json
-"schema_version": "limit-lens.snapshot.v0"
+"schema_version": "usage-tray.snapshot.v0"
 ```
 
 Required top-level fields:

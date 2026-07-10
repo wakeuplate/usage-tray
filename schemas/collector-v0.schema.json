@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://limit-lens.local/schemas/collector-v0.schema.json",
+  "$id": "https://usage-tray.local/schemas/collector-v0.schema.json",
   "title": "UsageTray Collector v0",
   "type": "object",
   "required": ["schema_version", "captured_at", "agents"],
   "additionalProperties": true,
   "properties": {
     "schema_version": {
-      "const": "limit-lens.collector.v0"
+      "const": "usage-tray.collector.v0"
     },
     "captured_at": {
       "type": "string",

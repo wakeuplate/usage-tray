@@ -1,8 +1,8 @@
-﻿# Limit Lens Collector Contract
+# UsageTray Collector Contract
 
 Updated: 2026-07-08 22:25:00 +08:00
 
-This document defines the first stable data contract for the Limit Lens collector.
+This document defines the first stable data contract for the UsageTray collector.
 
 Plain-language meaning: this is the receipt format. The collector reads Codex and Claude usage, then prints one sanitized JSON receipt. The future tray UI should read this receipt instead of guessing provider-specific fields.
 
@@ -11,7 +11,7 @@ Plain-language meaning: this is the receipt format. The collector reads Codex an
 Current collector schema:
 
 ```json
-"schema_version": "limit-lens.collector.v0"
+"schema_version": "usage-tray.collector.v0"
 ```
 
 Rules:
@@ -27,7 +27,7 @@ Required top-level fields:
 
 ```json
 {
-  "schema_version": "limit-lens.collector.v0",
+  "schema_version": "usage-tray.collector.v0",
   "captured_at": "2026-07-08T14:25:00Z",
   "agents": {
     "codex": {},
@@ -122,7 +122,7 @@ Bar chart rule:
 
 - Use `used_percent` for the filled part if the label says usage.
 - Use `remaining_percent` for the filled part if the label says remaining.
-- For Limit Lens v1, prefer showing usage bars with clear reset times.
+- For UsageTray v1, prefer showing usage bars with clear reset times.
 
 ## Codex result
 
@@ -141,7 +141,7 @@ Expected Codex result:
 
 Codex window mapping:
 
-| Limit Lens window | Codex app-server field | Meaning |
+| UsageTray window | Codex app-server field | Meaning |
 | --- | --- | --- |
 | `five_hour` | `rateLimits.primary` | 5-hour limit. |
 | `weekly` | `rateLimits.secondary` | Weekly limit. |
@@ -178,7 +178,7 @@ Expected Claude result:
 
 Claude window mapping:
 
-| Limit Lens window | Claude OAuth usage field | Meaning |
+| UsageTray window | Claude OAuth usage field | Meaning |
 | --- | --- | --- |
 | `five_hour` | `five_hour` | 5-hour limit. |
 | `weekly` | `seven_day` | Weekly all-models limit. |

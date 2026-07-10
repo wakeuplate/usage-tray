@@ -1,4 +1,4 @@
-﻿# Limit Lens
+# UsageTray
 
 個人用 Windows 系統匣工具，用來同時查看 Codex 與 Claude 的 5 小時、每週用量、重置時間與歷史使用情境。
 
@@ -25,8 +25,8 @@
 - Desktop shell：Tauri v2。
 - Backend：Rust。
 - UI：React + TypeScript。
-- Local DB：SQLite，放在 `%APPDATA%\LimitLens\limit-lens.sqlite`。
-- Config：JSON，放在 `%APPDATA%\LimitLens\config.json`。
+- Local DB：SQLite，放在 `%APPDATA%\UsageTray\usage-tray.sqlite`。
+- Config：JSON，放在 `%APPDATA%\UsageTray\config.json`。
 - Tray：Tauri tray API。
 - Popup：Tauri window 或 tray-attached compact window。
 - Optional web dashboard：v1 可先保留設計，不預設啟用。
@@ -61,7 +61,7 @@ Codex 讀取原則：
 優先順序：
 
 1. Claude Code OAuth usage collector：唯讀尋找 `%USERPROFILE%\.claude\.credentials.json` 與 WSL `.credentials.json`，用 access token 查 `https://api.anthropic.com/api/oauth/usage`。
-2. Limit Lens 最小 statusLine collector 產出的 Claude Code rate-limit snapshot。
+2. UsageTray 最小 statusLine collector 產出的 Claude Code rate-limit snapshot。
 3. `NYCU-Chung/cc-statusline` 相容資料：`~/.claude/rate-limit-snapshots.json`，若使用者已安裝，可唯讀匯入。
 4. ccusage 可讀到的 Claude Code token / cost 歷史資料。
 5. 若無 Claude Code 資料，顯示 unavailable，並提示可設定安全模式資料源。
@@ -84,7 +84,7 @@ Collector 行為：
 - 搜尋 Windows native credential：`%USERPROFILE%\.claude\.credentials.json`。
 - 搜尋 WSL credential：`\\wsl$\<distro>\home\<user>\.claude\.credentials.json` 與 `\\wsl.localhost\<distro>\home\<user>\.claude\.credentials.json`。
 - 若多個 credential 存在，選最近 modified 的檔案，讓它跟隨使用者最近使用的 Claude Code installation。
-- 從 credential 讀取 access token；不複製 token 到 Limit Lens config、SQLite、log 或 export。
+- 從 credential 讀取 access token；不複製 token 到 UsageTray config、SQLite、log 或 export。
 - 呼叫 `https://api.anthropic.com/api/oauth/usage`。
 - Request header 使用 Claude Code 相容格式：`Authorization: Bearer <token>`、`User-Agent: claude-code/<version>`、`anthropic-beta: oauth-2025-04-20`。
 - 若 access token 過期，2026-07-10 已依使用者需求改為自動刷新 refresh token，並在通過競態檢查後原子寫回 `.credentials.json`；若刷新或寫回失敗再回報可操作錯誤。舊政策僅供歷史：v1 原本預設不自動刷新，先提示使用者重新登入 Claude Code。
@@ -94,12 +94,12 @@ Collector 行為：
 
 - OAuth access token 仍是 bearer credential，不是公開資料。
 - 風險低於瀏覽器 `sessionKey` 的增量風險，因為這是 Claude Code 本來就存在的 credential；但任何能讀取 token 的程式仍可能呼叫相容的 Claude Code OAuth endpoint。
-- Limit Lens 不應持久保存 token；每次查詢時從原始 credential 讀取，使用後只保留聚合 usage 結果。
+- UsageTray 不應持久保存 token；每次查詢時從原始 credential 讀取，使用後只保留聚合 usage 結果。
 - 2026-07-10 已由使用者需求取代：collector 會自動刷新並原子寫回 `.credentials.json`；舊政策僅供歷史記錄，不再視為現況。
 
 ### Claude Code 最小 statusLine collector
 
-這是 Claude OAuth usage collector 失效時的 fallback，不是 v1 主路徑。Limit Lens 不照搬 `cc-statusline` 整套 dashboard，只學三個資料處理方法：rate-limit snapshot、reset rollover、delta-based token/cost 累積。
+這是 Claude OAuth usage collector 失效時的 fallback，不是 v1 主路徑。UsageTray 不照搬 `cc-statusline` 整套 dashboard，只學三個資料處理方法：rate-limit snapshot、reset rollover、delta-based token/cost 累積。
 
 Collector 原則：
 
@@ -108,7 +108,7 @@ Collector 原則：
 - 只寫聚合後 snapshot，不寫 prompt、message history、edited files、subagent、MCP 狀態。
 - 不做 session summary，不呼叫 Claude 重寫摘要，不消耗模型用量。
 - 不安裝 `UserPromptSubmit`、`Stop`、`PostToolUse` 等額外 hooks，除非後續明確需要 token delta 精準化。
-- 輸出到 `%APPDATA%\LimitLens\claude-code-snapshots.jsonl` 或 SQLite，不寫入 `.claude` 持久狀態；若必須接入 Claude Code statusLine，才以 opt-in 方式修改 `C:\Users\user\.claude\settings.json`。
+- 輸出到 `%APPDATA%\UsageTray\claude-code-snapshots.jsonl` 或 SQLite，不寫入 `.claude` 持久狀態；若必須接入 Claude Code statusLine，才以 opt-in 方式修改 `C:\Users\user\.claude\settings.json`。
 
 Collector 需要擷取的欄位：
 
@@ -295,7 +295,7 @@ History view 顯示：
 區塊：
 
 1. Header
-   - 左：`Limit Lens`
+   - 左：`UsageTray`
    - 右：Theme toggle、Refresh、Settings icon。
    - 副標：整體狀態一句話，例如 `Codex is the current bottleneck`。
 
@@ -466,7 +466,7 @@ Settings page 至少包含：
 
 - Codex collector：可用，主資料源為 `codex app-server account/rateLimits/read`。
 - Claude collector：可用，主資料源為 Claude Code OAuth `.credentials.json` + OAuth usage API。
-- Windows native build：可用，已安裝 MSVC 與 Windows SDK，`npm run tauri:dev` 已能編譯並啟動 `limit-lens.exe`。
+- Windows native build：可用，已安裝 MSVC 與 Windows SDK，`npm run tauri:dev` 已能編譯並啟動 `usage-tray.exe`。
 - Tray app：已具備 popup、tooltip、背景收集、單例、history 寫入等核心行為。
 - UI：已符合目前 v1 的 iOS Control Center / Raycast 方向。
 - Popup layout v2：改為固定尺寸 shell，`Now / 24h / Alerts` 同尺寸；視窗為 `336x400`（372 會裁掉 Claude Scoped 列，2026-07-10 修正）；內容改為內部 overflow，而不是整窗變高。
