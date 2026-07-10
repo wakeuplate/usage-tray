@@ -7,3 +7,5 @@ live_test*.json
 live_snapshot*.json
 refresh-live-test*
 release/
+PLAN.md
+STATUS.md
