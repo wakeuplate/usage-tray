@@ -5,3 +5,4 @@ __pycache__/
 *.log
 live_test*.json
 live_snapshot*.json
+refresh-live-test*
