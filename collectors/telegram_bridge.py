@@ -412,6 +412,33 @@ def usage_command_message(snapshot: dict[str, Any]) -> str:
     )
 
 
+def refresh_command_message(snapshot: dict[str, Any], agent_name: str) -> str:
+    """Return the result of the collector cycle that handled a refresh command.
+
+    The collector has already revalidated this agent before Telegram commands
+    are polled.  For Claude that also refreshes OAuth credentials when needed;
+    for Codex it creates a new app-server connection for the rate-limit read.
+    """
+    agent_label = AGENT_LABELS[agent_name]
+    agents = snapshot.get("agents", {})
+    agent = agents.get(agent_name) if isinstance(agents, dict) else None
+    if not isinstance(agent, dict) or agent.get("available") is False:
+        error = agent.get("error") if isinstance(agent, dict) else None
+        code = error.get("code") if isinstance(error, dict) else None
+        hint = ERROR_HINTS.get(code) if isinstance(code, str) else None
+        status = hint or "資料暫時無法取得，請稍後再試。"
+    else:
+        status = "已重新驗證並取得最新用量。"
+    report = "\n".join(build_report_lines_for_agent(snapshot, agent_name))
+    footer = f"更新：{format_stamp(snapshot.get('captured_at'))}"
+    return "\n\n".join(
+        [
+            escape_markdown_v2(f"🔄 {agent_label} 刷新完成\n{status}"),
+            f"```\n{escape_code_block(report)}\n\n{escape_code_block(footer)}\n```",
+        ]
+    )
+
+
 def send_message(token: str, chat_id: str, text: str, parse_mode: str | None = None) -> None:
     payload: dict[str, Any] = {
         "chat_id": chat_id,
@@ -455,6 +482,30 @@ def build_report_lines(snapshot: dict[str, Any], reference: dt.datetime | None =
         lines.append("")
     while lines and lines[-1] == "":
         lines.pop()
+    return lines
+
+
+def build_report_lines_for_agent(
+    snapshot: dict[str, Any], agent_name: str, reference: dt.datetime | None = None
+) -> list[str]:
+    """Build the same compact report as /usage, limited to one agent."""
+    reference = reference or resolve_reference(snapshot)
+    agents = snapshot.get("agents", {})
+    agent = agents.get(agent_name) if isinstance(agents, dict) else None
+    lines = [AGENT_LABELS[agent_name]]
+    if not isinstance(agent, dict) or agent.get("available") is False:
+        lines.append("資料無法取得")
+        return lines
+    windows = agent.get("windows", {})
+    for window_name in WINDOW_ORDER[agent_name]:
+        window = windows.get(window_name) if isinstance(windows, dict) else None
+        if not isinstance(window, dict):
+            continue
+        used = window.get("used_percent")
+        used_text = f"{used:>3.0f}%" if isinstance(used, (int, float)) else "  -"
+        label = WINDOW_SHORT_LABELS.get(window_name, window_name)
+        reset_text = format_reset_compact(window.get("reset_at"), reference)
+        lines.append(f"{label} {render_bar(used)} {used_text} · {reset_text}")
     return lines
 
 
@@ -653,11 +704,14 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "sent": sent}
 
 
-def is_usage_command(text: Any) -> bool:
+def command_name(text: Any) -> str | None:
     if not isinstance(text, str):
-        return False
-    stripped = text.strip()
-    return stripped == "/usage" or stripped.startswith("/usage@")
+        return None
+    first_word = text.strip().split(maxsplit=1)[0] if text.strip() else ""
+    command = first_word.split("@", maxsplit=1)[0]
+    if command in {"/usage", "/refresh_claude", "/refresh_codex"}:
+        return command
+    return None
 
 
 def action_poll_commands(payload: dict[str, Any]) -> dict[str, Any]:
@@ -687,7 +741,7 @@ def action_poll_commands(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(result, list):
         result = []
 
-    should_reply = False
+    commands: set[str] = set()
     for update in result:
         if not isinstance(update, dict):
             continue
@@ -702,19 +756,33 @@ def action_poll_commands(payload: dict[str, Any]) -> dict[str, Any]:
             continue
         if str(chat.get("id")) != str(chat_id):
             continue
-        if is_usage_command(message.get("text")):
-            should_reply = True
+        command = command_name(message.get("text"))
+        if command:
+            commands.add(command)
 
     save_updates_state(state)
-    if should_reply:
+    handled = 0
+    if "/usage" in commands:
         send_message(
             token,
             str(chat_id),
             usage_command_message(snapshot),
             parse_mode="MarkdownV2",
         )
-        return {"ok": True, "handled": 1}
-    return {"ok": True, "handled": 0}
+        handled += 1
+    for command, agent_name in (
+        ("/refresh_claude", "claude"),
+        ("/refresh_codex", "codex"),
+    ):
+        if command in commands:
+            send_message(
+                token,
+                str(chat_id),
+                refresh_command_message(snapshot, agent_name),
+                parse_mode="MarkdownV2",
+            )
+            handled += 1
+    return {"ok": True, "handled": handled}
 
 
 ACTIONS = {

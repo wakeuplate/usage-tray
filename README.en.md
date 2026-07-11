@@ -15,7 +15,7 @@ Core idea: **use whichever agent still has quota** — if you subscribe to more 
 Most usage-display tools only cover one provider and only display. UsageTray:
 
 - **Both providers, one panel**: Codex (5-hour + weekly) and Claude Code (5-hour + weekly + per-model scoped) side by side, so choosing which agent to use is a glance, not a lookup.
-- **Reaches out instead of waiting to be checked**: Telegram alerts fire when usage crosses 50%/85%/95% (with a text usage bar chart); send `/usage` to the bot anytime to pull the current numbers, even away from the desktop.
+- **Reaches out instead of waiting to be checked**: Telegram alerts fire when usage crosses 50%/85%/95% (with a text usage bar chart); send `/usage` to the bot anytime to pull the current numbers, or `/refresh_claude` and `/refresh_codex` to revalidate one service and receive its latest status, even away from the desktop.
 - **Refreshes Claude's token, and the CLI benefits too**: Claude Code's OAuth token expires every 8 hours. UsageTray refreshes it automatically and atomically writes the new token back to the credentials file (with a concurrency guard and a failure cooldown), so the `claude` CLI itself stops prompting you to sign in again.
 - **Light**: Tauri-packaged, 2.5 MB installer, single-digit MB idle memory.
 - **History is kept and analyzable**: every reading is appended to a local JSONL file (`%APPDATA%\UsageTray\snapshots.jsonl`), so raw data is always there if you want to analyze usage patterns.
@@ -37,7 +37,7 @@ If you don't need that guarantee, any off-the-shelf usage display tool can handl
 - `Now`: used percentage and reset time for every quota window on both agents, refreshed live.
 - `Trends`: two charts — 5-hour usage over the last 24 hours, and weekly usage over the last 7 days — with Claude and Codex overlaid on the same chart for direct comparison, legend showing current values.
 - `Alerts`: Telegram bot setup (paste token, auto-detect chat, send a test) and threshold-based push alerts.
-- Telegram two-way: proactive alerts on threshold crossings (multiple crossings in one cycle are combined into a single message); send `/usage` anytime to pull the current report (replies within ~2 minutes).
+- Telegram two-way: proactive alerts on threshold crossings (multiple crossings in one cycle are combined into a single message); send `/usage` anytime to pull the current report, or `/refresh_claude` and `/refresh_codex` to revalidate a single service (replies within ~2 minutes). Refreshes only use the local collector and official usage/authentication services; they do not send a model prompt or consume model quota.
 
 ## Requirements
 
@@ -77,7 +77,7 @@ npm run tauri build
   - Codex: local `codex app-server`'s `account/rateLimits/read` JSON-RPC method.
   - Claude: reads `%USERPROFILE%\.claude\.credentials.json`, calls the official usage API; refreshes and atomically writes back on expiry.
 - **History**: `collectors/history_snapshot.py` appends to `%APPDATA%\UsageTray\snapshots.jsonl` (design in [docs/SNAPSHOT-HISTORY.md](docs/SNAPSHOT-HISTORY.md)).
-- **Alerts and commands**: `collectors/telegram_bridge.py` handles threshold dedup, push alerts, and `/usage` replies.
+- **Alerts and commands**: `collectors/telegram_bridge.py` handles threshold dedup, push alerts, and replies to `/usage`, `/refresh_claude`, and `/refresh_codex`.
 
 ## Tests
 
