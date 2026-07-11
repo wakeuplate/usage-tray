@@ -1,9 +1,11 @@
 use std::collections::VecDeque;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 
+use serde::{Deserialize, Serialize};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -16,8 +18,43 @@ const HISTORY_RELATIVE_PATH: &str = "collectors\\history_snapshot.py";
 const TELEGRAM_RELATIVE_PATH: &str = "collectors\\telegram_bridge.py";
 const TRAY_ID: &str = "usage-tray-tray";
 
-fn python_command() -> Command {
-    let mut command = Command::new("python");
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+struct AppSettings {
+    claude_auto_refresh: bool,
+    refresh_notice_seen: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            claude_auto_refresh: true,
+            refresh_notice_seen: false,
+        }
+    }
+}
+
+fn python_path() -> Result<&'static PathBuf, String> {
+    static PYTHON_PATH: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    PYTHON_PATH
+        .get_or_init(|| {
+            let output = Command::new("where.exe")
+                .arg("python")
+                .output()
+                .map_err(|_| "Python 3.10+ was not found on PATH.".to_string())?;
+            String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .map(PathBuf::from)
+                .find(|path| path.is_file())
+                .ok_or_else(|| "Python 3.10+ was not found on PATH.".to_string())
+        })
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+fn python_command() -> Result<Command, String> {
+    let mut command = Command::new(python_path()?);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -25,7 +62,37 @@ fn python_command() -> Command {
         // console window every time a Python helper is spawned.
         command.creation_flags(0x0800_0000);
     }
-    command
+    Ok(command)
+}
+
+fn app_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(history_output_path(app)?.join("settings.json"))
+}
+
+fn load_app_settings(app: &AppHandle) -> AppSettings {
+    let Ok(path) = app_settings_path(app) else {
+        return AppSettings::default();
+    };
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| serde_json::from_str(&contents).ok())
+        .unwrap_or_default()
+}
+
+fn save_app_settings_file(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
+    let path = app_settings_path(app)?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Unable to prepare app settings.".to_string())?;
+    fs::create_dir_all(parent).map_err(|_| "Unable to prepare app settings.".to_string())?;
+    let temp = path.with_extension("json.tmp");
+    fs::write(
+        &temp,
+        serde_json::to_vec_pretty(settings)
+            .map_err(|_| "Unable to save app settings.".to_string())?,
+    )
+    .map_err(|_| "Unable to save app settings.".to_string())?;
+    fs::rename(temp, path).map_err(|_| "Unable to save app settings.".to_string())
 }
 
 #[tauri::command]
@@ -35,14 +102,17 @@ async fn collect_usage(app: AppHandle) -> Result<serde_json::Value, String> {
         .map_err(|_| "Collector task stopped unexpectedly.".to_string())?
 }
 
-fn collect_usage_blocking(app: AppHandle) -> Result<serde_json::Value, String> {
-    let project_root = project_root_from_app(&app)?;
+fn run_collector(app: &AppHandle) -> Result<serde_json::Value, String> {
+    let project_root = project_root_from_app(app)?;
     let collector_path = project_root.join(COLLECTOR_RELATIVE_PATH);
 
-    let output = python_command()
-        .arg(&collector_path)
-        .arg("--timeout-sec")
-        .arg("20")
+    let settings = load_app_settings(app);
+    let mut command = python_command()?;
+    command.arg(&collector_path).arg("--timeout-sec").arg("20");
+    if !settings.claude_auto_refresh {
+        command.arg("--no-claude-refresh");
+    }
+    let output = command
         .output()
         .map_err(|error| format!("Failed to start collector: {error}"))?;
 
@@ -53,13 +123,27 @@ fn collect_usage_blocking(app: AppHandle) -> Result<serde_json::Value, String> {
         ));
     }
 
-    let payload = serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Collector returned invalid JSON: {error}"))?;
+    serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("Collector returned invalid JSON: {error}"))
+}
 
+// Runs the collector plus history/alerts/command side effects. Only the
+// frontend's polling loop should call this - it keeps running even while the
+// window is hidden, so a second independent trigger (e.g. a background
+// timer) would race it for the same on-disk alert-dedup state and double-send
+// Telegram notifications.
+fn collect_usage_blocking(app: AppHandle) -> Result<serde_json::Value, String> {
+    let payload = run_collector(&app)?;
     let _ = save_history_snapshot(&app, &payload);
     let _ = process_telegram_alerts(&app, &payload);
     let _ = poll_telegram_commands(&app, &payload);
     Ok(payload)
+}
+
+// Tooltip-only refresh for the background timer: no history/alerts/commands,
+// so it can't race the frontend loop's side effects.
+fn refresh_tooltip_only(app: AppHandle) -> Result<serde_json::Value, String> {
+    run_collector(&app)
 }
 
 fn run_python_json_script(
@@ -70,9 +154,10 @@ fn run_python_json_script(
 ) -> Result<serde_json::Value, String> {
     let project_root = project_root_from_app(app)?;
     let script_path = project_root.join(relative_path);
-    let input = serde_json::to_vec(payload).map_err(|_| "Unable to prepare script input.".to_string())?;
+    let input =
+        serde_json::to_vec(payload).map_err(|_| "Unable to prepare script input.".to_string())?;
 
-    let mut child = python_command()
+    let mut child = python_command()?
         .arg(script_path)
         .arg(action)
         .stdin(Stdio::piped())
@@ -115,7 +200,7 @@ fn save_history_snapshot(app: &AppHandle, payload: &serde_json::Value) -> Result
     let input = serde_json::to_vec(payload)
         .map_err(|_| "Unable to prepare history snapshot.".to_string())?;
 
-    let mut child = python_command()
+    let mut child = python_command()?
         .arg(history_script)
         .arg("--output")
         .arg(history_path)
@@ -198,16 +283,52 @@ fn get_alert_settings(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+fn get_app_settings(app: AppHandle) -> AppSettings {
+    load_app_settings(&app)
+}
+
+#[tauri::command]
+fn save_app_settings(app: AppHandle, settings: AppSettings) -> Result<AppSettings, String> {
+    save_app_settings_file(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+fn get_autostart_enabled(app: AppHandle) -> Result<bool, String> {
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|_| "Unable to read Windows startup setting.".to_string())
+}
+
+#[tauri::command]
+fn set_autostart_enabled(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let autostart = app.autolaunch();
+    if enabled {
+        autostart
+            .enable()
+            .map_err(|_| "Unable to enable Windows startup.".to_string())?;
+    } else {
+        autostart
+            .disable()
+            .map_err(|_| "Unable to disable Windows startup.".to_string())?;
+    }
+    Ok(enabled)
+}
+
+#[tauri::command]
+fn get_runtime_info() -> serde_json::Value {
+    match python_path() {
+        Ok(path) => serde_json::json!({ "python_path": path }),
+        Err(error) => serde_json::json!({ "python_path": serde_json::Value::Null, "error": error }),
+    }
+}
+
+#[tauri::command]
 fn save_alert_settings(
     app: AppHandle,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    run_python_json_script(
-        &app,
-        TELEGRAM_RELATIVE_PATH,
-        "save-settings",
-        &payload,
-    )
+    run_python_json_script(&app, TELEGRAM_RELATIVE_PATH, "save-settings", &payload)
 }
 
 #[tauri::command]
@@ -282,7 +403,11 @@ fn set_tray_tooltip(app: &AppHandle, summary: String) -> Result<(), String> {
 
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     let adjusted_year = if month <= 2 { year - 1 } else { year };
-    let era = if adjusted_year >= 0 { adjusted_year } else { adjusted_year - 399 } / 400;
+    let era = if adjusted_year >= 0 {
+        adjusted_year
+    } else {
+        adjusted_year - 399
+    } / 400;
     let year_of_era = adjusted_year - era * 400;
     let shifted_month = if month > 2 { month - 3 } else { month + 9 } as i64;
     let day_of_year = (153 * shifted_month + 2) / 5 + day as i64 - 1;
@@ -304,7 +429,10 @@ fn parse_iso_to_epoch(value: &str) -> Option<i64> {
     let minute = number(14..16)?;
     let second = number(17..19)?;
     let rest = &value[19..];
-    let offset_start = rest.find(['Z', '+', '-']).map(|i| 19 + i).unwrap_or(value.len());
+    let offset_start = rest
+        .find(['Z', '+', '-'])
+        .map(|i| 19 + i)
+        .unwrap_or(value.len());
     let offset_seconds = match value.get(offset_start..) {
         Some("Z") | Some("") | None => 0,
         Some(offset) => {
@@ -314,7 +442,10 @@ fn parse_iso_to_epoch(value: &str) -> Option<i64> {
             sign * (hours * 3600 + minutes * 60)
         }
     };
-    Some(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second - offset_seconds)
+    Some(
+        days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second
+            - offset_seconds,
+    )
 }
 
 // Windows caps tray tooltips at roughly 64 characters; keep each line short.
@@ -439,7 +570,7 @@ pub fn run() {
             let background_app = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(300));
-                if let Ok(payload) = collect_usage_blocking(background_app.clone()) {
+                if let Ok(payload) = refresh_tooltip_only(background_app.clone()) {
                     let _ = set_tray_tooltip(&background_app, tooltip_summary(&payload));
                 }
             });
@@ -449,10 +580,15 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             collect_usage,
             discover_telegram_chat,
+            get_app_settings,
             get_alert_settings,
+            get_autostart_enabled,
+            get_runtime_info,
             read_history,
+            save_app_settings,
             save_alert_settings,
             send_telegram_test,
+            set_autostart_enabled,
             update_tray_tooltip
         ])
         .run(tauri::generate_context!())

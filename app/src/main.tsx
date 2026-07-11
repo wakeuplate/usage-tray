@@ -39,6 +39,16 @@ type AlertSettings = {
   thresholds: number[];
 };
 
+type AppSettings = {
+  claude_auto_refresh: boolean;
+  refresh_notice_seen: boolean;
+};
+
+type RuntimeInfo = {
+  python_path: string | null;
+  error?: string;
+};
+
 type ViewMode = "usage" | "history" | "alerts";
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -424,6 +434,11 @@ function AlertsPanel({
   onSendTest,
   busy,
   busyLabel,
+  appSettings,
+  autostartEnabled,
+  runtimeInfo,
+  onToggleClaudeRefresh,
+  onToggleAutostart,
 }: {
   settings: AlertSettings | null;
   tokenInput: string;
@@ -434,6 +449,11 @@ function AlertsPanel({
   onSendTest: () => void;
   busy: boolean;
   busyLabel: string | null;
+  appSettings: AppSettings | null;
+  autostartEnabled: boolean;
+  runtimeInfo: RuntimeInfo | null;
+  onToggleClaudeRefresh: (enabled: boolean) => void;
+  onToggleAutostart: (enabled: boolean) => void;
 }) {
   return (
     <section className="agent-panel alerts-panel">
@@ -495,6 +515,25 @@ function AlertsPanel({
           {busyLabel === "testing" ? "Sending..." : "Send test"}
         </button>
       </div>
+
+      <div className="settings-divider" />
+      <div className="agent-heading settings-heading">
+        <div className="agent-title"><h2>App settings</h2></div>
+      </div>
+      <label className="toggle-row">
+        <input
+          type="checkbox"
+          checked={appSettings?.claude_auto_refresh ?? true}
+          onChange={(event) => onToggleClaudeRefresh(event.target.checked)}
+        />
+        <span>Refresh Claude token automatically</span>
+      </label>
+      <p className="settings-copy">When enabled, UsageTray may update Claude Code credentials and keeps one .bak backup beside them.</p>
+      <label className="toggle-row">
+        <input type="checkbox" checked={autostartEnabled} onChange={(event) => onToggleAutostart(event.target.checked)} />
+        <span>Start with Windows</span>
+      </label>
+      <p className="settings-copy">Python: {runtimeInfo?.python_path ?? runtimeInfo?.error ?? "Checking..."}</p>
     </section>
   );
 }
@@ -504,6 +543,9 @@ function App() {
   const [history, setHistory] = React.useState<HistorySnapshot[]>([]);
   const [mode, setMode] = React.useState<ViewMode>("usage");
   const [alertSettings, setAlertSettings] = React.useState<AlertSettings | null>(null);
+  const [appSettings, setAppSettings] = React.useState<AppSettings | null>(null);
+  const [autostartEnabled, setAutostartEnabled] = React.useState(true);
+  const [runtimeInfo, setRuntimeInfo] = React.useState<RuntimeInfo | null>(null);
   const [tokenInput, setTokenInput] = React.useState("");
   const [alertsBusy, setAlertsBusy] = React.useState(false);
   const [alertsBusyLabel, setAlertsBusyLabel] = React.useState<string | null>(null);
@@ -517,6 +559,21 @@ function App() {
       setAlertSettings(response.settings);
     } catch {
       setAlertSettings(null);
+    }
+  }, []);
+
+  const loadAppSettings = React.useCallback(async () => {
+    try {
+      const [settings, autostart, runtime] = await Promise.all([
+        invoke<AppSettings>("get_app_settings"),
+        invoke<boolean>("get_autostart_enabled"),
+        invoke<RuntimeInfo>("get_runtime_info"),
+      ]);
+      setAppSettings(settings);
+      setAutostartEnabled(autostart);
+      setRuntimeInfo(runtime);
+    } catch {
+      setAppSettings(null);
     }
   }, []);
 
@@ -555,9 +612,26 @@ function App() {
   React.useEffect(() => {
     void refresh();
     void loadAlertSettings();
+    void loadAppSettings();
     const timer = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(timer);
-  }, [loadAlertSettings, refresh]);
+  }, [loadAlertSettings, loadAppSettings, refresh]);
+
+  const saveAppSettings = React.useCallback(async (next: AppSettings) => {
+    try {
+      setAppSettings(await invoke<AppSettings>("save_app_settings", { settings: next }));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    }
+  }, []);
+
+  const toggleAutostart = React.useCallback(async (enabled: boolean) => {
+    try {
+      setAutostartEnabled(await invoke<boolean>("set_autostart_enabled", { enabled }));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    }
+  }, []);
 
   const saveAlertSettings = React.useCallback(
     async (payload: { enabled?: boolean; bot_token?: string; chat_id?: string | null; chat_label?: string | null }) => {
@@ -701,13 +775,30 @@ function App() {
             onSendTest={() => void sendTest()}
             busy={alertsBusy}
             busyLabel={alertsBusyLabel}
+            appSettings={appSettings}
+            autostartEnabled={autostartEnabled}
+            runtimeInfo={runtimeInfo}
+            onToggleClaudeRefresh={(claude_auto_refresh) => void saveAppSettings({
+              claude_auto_refresh,
+              refresh_notice_seen: appSettings?.refresh_notice_seen ?? false,
+            })}
+            onToggleAutostart={(enabled) => void toggleAutostart(enabled)}
           />
         )}
       </div>
+      {appSettings && !appSettings.refresh_notice_seen ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="refresh-notice-title">
+          <section className="refresh-notice">
+            <h2 id="refresh-notice-title">Claude token refresh</h2>
+            <p>UsageTray can renew an expired Claude Code OAuth token. This updates your Claude credentials file and keeps one .bak backup beside it.</p>
+            <p>You can turn this off any time in Alerts → App settings. With it off, UsageTray only reads an existing valid token.</p>
+            <button type="button" onClick={() => void saveAppSettings({ ...appSettings, refresh_notice_seen: true })}>I understand</button>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
-
 

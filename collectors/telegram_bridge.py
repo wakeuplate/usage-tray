@@ -249,8 +249,7 @@ def telegram_api(token: str, method: str, payload: dict[str, Any]) -> dict[str, 
         with urllib.request.urlopen(request, timeout=20) as response:
             parsed = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Telegram HTTP {error.code}: {body[:160]}")
+        raise RuntimeError(f"Telegram HTTP {error.code}")
     except urllib.error.URLError as error:
         raise RuntimeError(f"Telegram connection failed: {error.reason}")
     if not parsed.get("ok"):

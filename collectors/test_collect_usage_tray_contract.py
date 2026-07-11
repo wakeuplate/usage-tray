@@ -188,6 +188,7 @@ class CollectorContractTests(unittest.TestCase):
                 result = self.collector.collect_claude(str(path), 30, str(state_path))
 
             written = json.loads(path.read_text(encoding="utf-8"))
+            backup = json.loads(path.with_name("credentials.json.bak").read_text(encoding="utf-8"))
             self.assertTrue(result["available"])
             self.assertTrue(result["diagnostics"]["token_refreshed"])
             self.assertNotIn("refresh_writeback_failed", result["diagnostics"])
@@ -199,8 +200,34 @@ class CollectorContractTests(unittest.TestCase):
             self.assertEqual(written["claudeAiOauth"]["accessToken"], "new-access")
             self.assertEqual(written["claudeAiOauth"]["refreshToken"], "new-refresh")
             self.assertEqual(written["claudeAiOauth"]["expiresAt"], 4_600_000)
+            self.assertEqual(backup, original)
             self.assertEqual(calls[0]["url"], self.collector.CLAUDE_REFRESH_ENDPOINT)
             self.assertEqual(calls[1]["url"], self.collector.CLAUDE_USAGE_ENDPOINT)
+
+    def test_collect_claude_read_only_does_not_refresh_or_write_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "credentials.json"
+            original = {
+                "claudeAiOauth": {
+                    "accessToken": "old-access",
+                    "refreshToken": "old-refresh",
+                    "expiresAt": 999_000,
+                }
+            }
+            path.write_text(json.dumps(original), encoding="utf-8")
+
+            def fake_urlopen(request, timeout=None):
+                self.assertEqual(request.full_url, self.collector.CLAUDE_USAGE_ENDPOINT)
+                raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, io.BytesIO(b"{}"))
+
+            with mock.patch.object(self.collector.time, "time", return_value=1_000.0), mock.patch.object(
+                self.collector.urllib.request, "urlopen", side_effect=fake_urlopen
+            ):
+                result = self.collector.collect_claude(str(path), 30, allow_refresh=False)
+
+            self.assertEqual(result["error"]["code"], "claude_auth_expired")
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), original)
+            self.assertFalse(path.with_name("credentials.json.bak").exists())
 
     def test_collect_claude_refresh_failure_keeps_file_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

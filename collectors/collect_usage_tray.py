@@ -97,6 +97,14 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     os.replace(temp_path, path)
 
 
+def backup_credentials(path: Path) -> None:
+    """Keep one recoverable copy immediately before replacing credentials."""
+    backup_path = path.with_name(f"{path.name}.bak")
+    temp_path = backup_path.with_name(f"{backup_path.name}.usagetray-tmp")
+    temp_path.write_bytes(path.read_bytes())
+    os.replace(temp_path, backup_path)
+
+
 def default_refresh_state_path() -> Path | None:
     appdata = os.environ.get("APPDATA")
     if not appdata:
@@ -310,6 +318,7 @@ def refresh_claude_credentials(
     updated_credentials["claudeAiOauth"] = updated_oauth
 
     try:
+        backup_credentials(path)
         write_json_atomic(path, updated_credentials)
     except Exception as exc:  # noqa: BLE001 - collector returns JSON errors.
         diagnostics["token_refreshed"] = True
@@ -550,7 +559,12 @@ def collect_codex(codex_command: str, timeout_sec: int) -> dict[str, Any]:
     return result
 
 
-def collect_claude(credentials_path: str, timeout_sec: int, refresh_state_file: str | None = None) -> dict[str, Any]:
+def collect_claude(
+    credentials_path: str,
+    timeout_sec: int,
+    refresh_state_file: str | None = None,
+    allow_refresh: bool = True,
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "available": False,
         "source": "claude_code_oauth",
@@ -594,7 +608,7 @@ def collect_claude(credentials_path: str, timeout_sec: int, refresh_state_file: 
         result["diagnostics"]["rate_limit_tier_present"] = bool(oauth.get("rateLimitTier"))
         now_ms = int(time.time() * 1000)
         expires_at = oauth.get("expiresAt")
-        should_refresh = (
+        should_refresh = allow_refresh and (
             isinstance(refresh_token, str)
             and refresh_token
             and (
@@ -641,7 +655,7 @@ def collect_claude(credentials_path: str, timeout_sec: int, refresh_state_file: 
         except urllib.error.HTTPError as exc:
             usage_error = exc
 
-        if usage_error and usage_error.code == 401 and not refreshed:
+        if usage_error and usage_error.code == 401 and not refreshed and allow_refresh:
             if refresh_cooldown_active(refresh_state_path, now_ms):
                 result["diagnostics"]["refresh_cooldown_active"] = True
             else:
@@ -759,6 +773,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--codex-command", default=default_codex)
     parser.add_argument("--claude-credentials", default=default_claude)
     parser.add_argument("--refresh-state-file", default=str(default_refresh_state) if default_refresh_state else None)
+    parser.add_argument("--no-claude-refresh", action="store_true", help="Read Claude usage without refreshing or writing credentials.")
     parser.add_argument("--timeout-sec", type=int, default=30)
     parser.add_argument("--skip-codex", action="store_true")
     parser.add_argument("--skip-claude", action="store_true")
@@ -776,7 +791,12 @@ def main() -> int:
     if not args.skip_codex:
         result["agents"]["codex"] = collect_codex(args.codex_command, args.timeout_sec)
     if not args.skip_claude:
-        result["agents"]["claude"] = collect_claude(args.claude_credentials, args.timeout_sec, args.refresh_state_file)
+        result["agents"]["claude"] = collect_claude(
+            args.claude_credentials,
+            args.timeout_sec,
+            args.refresh_state_file,
+            allow_refresh=not args.no_claude_refresh,
+        )
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

@@ -24,16 +24,16 @@
 
 這是一個要求讀取你 Codex／Claude 登入憑證的工具，會自動修改儲存 OAuth token 的檔案。**先弄清楚它做了什麼，比只看功能列表更重要**——這也是為什麼原始碼公開、而不是只給你一個裝好就好的黑盒安裝檔：
 
-- **零外部伺服器**：用量資料只在「你的電腦 → Codex app-server／Anthropic 官方 API」之間流動，UsageTray 本身不架伺服器、不回傳任何資料給作者或第三方。你可以直接讀 [`collectors/`](collectors/) 底下三支 Python 檔案確認——沒有任何你看不懂的網路請求。
+- **未啟用 Telegram 時，不傳第三方**：用量資料只在「你的電腦 → Codex app-server／Anthropic 官方 API」之間流動；UsageTray 本身不架伺服器、不回傳資料給作者。若啟用 Telegram，才會把文字用量報表（使用率、重置時間、更新時間與固定錯誤提示）送到 Telegram；不會傳 access token、refresh token、憑證內容或檔案路徑。
 - **Token 永不落 log、永不外傳**：所有錯誤訊息在寫出前都會先過濾憑證字串；Telegram bot token 用 Windows DPAPI（跟瀏覽器存密碼同一套機制）加密存在本機 `%APPDATA%\UsageTray\`，不是明文。
-- **憑證寫回是唯一的高風險動作，且刻意做得保守**：Claude OAuth token 過期時，UsageTray 會呼叫官方 refresh 端點換新，並寫回你的 `.credentials.json`。這一步實作了：寫回前重新讀檔比對，偵測到你已經用別的地方（例如 `claude` CLI 本身）搶先刷新過，就放棄自己的結果、改用最新版本，避免用舊資料覆蓋掉新 token；同一目錄先寫暫存檔再原子替換，就算寫到一半當機也不會讓憑證檔壞掉、變成殘缺 JSON。
+- **憑證寫回是唯一的高風險動作，且可關閉**：Claude OAuth token 過期時，UsageTray 預設會呼叫官方 refresh 端點換新，並寫回你的 `.credentials.json`；可在 `Alerts → App settings` 關閉。每次寫回前會保留同目錄的單一 `.credentials.json.bak` 備份，並先重新讀檔比對，若 `claude` CLI 已搶先刷新就不覆寫；寫入也採同目錄暫存檔再原子替換。
 - **能自己驗證，不用只相信這段話**：跑 `python collectors/test_collect_usage_tray_contract.py` 看測試（含專門模擬 token 刷新失敗、並行競態的案例）；或直接讀 [`docs/COLLECTOR-CONTRACT.md`](docs/COLLECTOR-CONTRACT.md) 看資料契約說明哪些欄位絕對不會出現。
 
 如果你不需要這層保證，市面上任何一個現成的用量顯示工具都能做「顯示」這件事——UsageTray 存在的理由就是讓你能親自檢查它有沒有亂動你的登入憑證。
 
 ## 功能一覽
 
-- 系統匣常駐，左鍵點圖示彈出面板；hover 顯示兩家 5 小時額度與剩餘時間；開機自動啟動。
+- 系統匣常駐，左鍵點圖示彈出面板；hover 顯示兩家 5 小時額度與剩餘時間；可在 `Alerts → App settings` 控制是否隨 Windows 啟動。
 - `Now`：Claude、Codex 各額度視窗的已用百分比、重置時間，即時刷新。
 - `Trends`：兩張走勢圖——5 小時額度（近 24 小時）與每週額度（近 7 天）——Claude／Codex 同框疊圖對比，圖例帶目前值。
 - `Alerts`：Telegram bot 設定（貼 token、自動偵測 chat、測試發送）與門檻推播。
@@ -42,7 +42,7 @@
 ## 系統需求
 
 - Windows 10/11（x64）
-- [Python 3.10+](https://www.python.org/downloads/)，且 `python` 在 PATH 中（收集器為純標準函式庫 Python 腳本，無需 pip 安裝套件）
+- [Python 3.10+](https://www.python.org/downloads/)，且 `python` 在 PATH 中（首次啟動會解析並固定實際 Python 路徑；收集器為純標準函式庫 Python 腳本，無需 pip 安裝套件）
 - 至少安裝並登入其中一個：
   - [Codex CLI](https://github.com/openai/codex)（透過 `codex app-server` 讀額度）
   - [Claude Code](https://code.claude.com/docs/en/overview)（透過 OAuth 憑證查額度）

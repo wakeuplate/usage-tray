@@ -24,16 +24,16 @@ Most usage-display tools only cover one provider and only display. UsageTray:
 
 This tool asks to read your Codex/Claude sign-in credentials and automatically modifies the file that stores your OAuth token. **Understanding what it actually does matters more than the feature list** — which is also why the source is public instead of just a shrink-wrapped installer:
 
-- **No external server**: usage data only flows between your machine, the Codex app-server, and Anthropic's official API. UsageTray runs no server of its own and sends nothing to the author or any third party. Read the three Python files under [`collectors/`](collectors/) yourself — there is no network call you can't account for.
+- **No third-party transfer when Telegram is off**: usage data only flows between your machine, the Codex app-server, and Anthropic's official API. UsageTray runs no server of its own and sends nothing to the author. If you enable Telegram, it sends a text usage report (usage, reset times, update time, and fixed error hints) to Telegram; it never sends access tokens, refresh tokens, credential contents, or file paths.
 - **Tokens never get logged or sent anywhere**: every error message is scrubbed of credential strings before it's written out; the Telegram bot token is encrypted at rest with Windows DPAPI (the same mechanism browsers use for saved passwords) under `%APPDATA%\UsageTray\`, never in plaintext.
-- **Writing back credentials is the one high-risk step, and it's built conservatively**: when the Claude OAuth token expires, UsageTray calls the official refresh endpoint and writes the new token back into `.credentials.json`. This step re-reads the file right before writing and compares it against what it started with — if something else (like the `claude` CLI itself) already refreshed in the meantime, it discards its own result and uses the newer token instead of clobbering it. The write itself is atomic (temp file in the same directory, then replace), so a crash mid-write can't leave you with a corrupted credentials file.
+- **Writing back credentials is the one high-risk step, and it is optional**: when the Claude OAuth token expires, UsageTray refreshes it and writes the new token back into `.credentials.json` by default; you can turn this off in `Alerts → App settings`. Before every write, it keeps one `.credentials.json.bak` backup beside the original, re-reads the file to avoid overwriting a token refreshed by `claude` CLI, then uses an atomic same-directory replacement.
 - **You can verify this yourself, not just take my word for it**: run `python collectors/test_collect_usage_tray_contract.py` to see the tests (including cases that simulate a failed refresh and a concurrent-write race), or read [`docs/COLLECTOR-CONTRACT.md`](docs/COLLECTOR-CONTRACT.md) for the data contract spelling out exactly which fields can never appear in the output.
 
 If you don't need that guarantee, any off-the-shelf usage display tool can handle "showing a number." UsageTray's reason to exist is that you can personally check it isn't doing anything sketchy with your sign-in credentials.
 
 ## Features
 
-- Lives in the system tray; left-click the icon to pop the panel open. Hover shows both agents' 5-hour usage and time to reset. Starts automatically on boot.
+- Lives in the system tray; left-click the icon to pop the panel open. Hover shows both agents' 5-hour usage and time to reset. Windows startup is controllable in `Alerts → App settings`.
 - `Now`: used percentage and reset time for every quota window on both agents, refreshed live.
 - `Trends`: two charts — 5-hour usage over the last 24 hours, and weekly usage over the last 7 days — with Claude and Codex overlaid on the same chart for direct comparison, legend showing current values.
 - `Alerts`: Telegram bot setup (paste token, auto-detect chat, send a test) and threshold-based push alerts.
@@ -42,7 +42,7 @@ If you don't need that guarantee, any off-the-shelf usage display tool can handl
 ## Requirements
 
 - Windows 10/11 (x64)
-- [Python 3.10+](https://www.python.org/downloads/) with `python` on PATH (the collector is a stdlib-only Python script — no pip packages needed)
+- [Python 3.10+](https://www.python.org/downloads/) with `python` on PATH (the app resolves and fixes the actual Python path on first launch; the collector is stdlib-only, with no pip packages needed)
 - At least one of:
   - [Codex CLI](https://github.com/openai/codex) (usage read via `codex app-server`)
   - [Claude Code](https://code.claude.com/docs/en/overview) (usage read via OAuth credentials)

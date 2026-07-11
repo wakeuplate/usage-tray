@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Collector contract tests
+        run: python collectors/test_collect_usage_tray_contract.py
+      - name: Frontend build
+        working-directory: app
+        run: npm ci && npm run build
+      - name: Rust check
+        working-directory: app/src-tauri
+        run: cargo check

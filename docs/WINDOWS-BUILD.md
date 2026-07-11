@@ -1,18 +1,8 @@
 # UsageTray Windows Build
 
-Updated: 2026-07-09
+Updated: 2026-07-11
 
-## Current blocker
-
-The app code, frontend build, Rust formatting, Tauri metadata, and local tests pass.
-
-The native tray app cannot be compiled on this computer yet because these Microsoft components are missing:
-
-- MSVC C++ build tools;
-- Windows SDK;
-- `link.exe`.
-
-Rust and WebView2 are already installed.
+The native build requires the components below. The current development machine has them installed.
 
 ## One-time installation
 
@@ -36,7 +26,7 @@ No full Visual Studio editor is required.
 Open a new PowerShell window after installation:
 
 ```powershell
-cd D:\claude-projects\limit-lens\app
+cd D:\claude-projects\usage-tray\app
 & "C:\Program Files\nodejs\npm.cmd" run tauri:dev
 ```
 
@@ -55,14 +45,14 @@ Expected behavior:
 After the development run is confirmed:
 
 ```powershell
-cd D:\claude-projects\limit-lens\app
+cd D:\claude-projects\usage-tray\app
 & "C:\Program Files\nodejs\npm.cmd" run tauri:build
 ```
 
 The installer output will be under:
 
 ```text
-D:\claude-projects\limit-lens\app\src-tauri\target\release\bundle\
+D:\claude-projects\usage-tray\app\src-tauri\target\release\bundle\
 ```
 
 ## Current Claude sign-in
@@ -75,4 +65,4 @@ Before final runtime verification, run:
 & "$env:USERPROFILE\.local\bin\claude.exe" auth login
 ```
 
-UsageTray never stores the Claude access token. It only reads the existing Claude Code credential when collecting usage.
+UsageTray never stores the Claude access token in its own data directory. With Claude token auto-refresh enabled (the default), it may update the existing Claude Code credential and retains one adjacent `.credentials.json.bak` backup. Disable this in `Alerts → App settings` for read-only collection.

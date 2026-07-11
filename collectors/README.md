@@ -7,13 +7,14 @@ This folder holds the first minimal data collector and history-snapshot prototyp
 Reads the two confirmed primary data sources and writes one sanitized JSON object to stdout:
 
 - Codex: spawns `codex.cmd app-server --disable plugins`, then calls `account/rateLimits/read`.
-- Claude: reads `~/.claude/.credentials.json`, uses `claudeAiOauth.accessToken` in memory, and calls `https://api.anthropic.com/api/oauth/usage`.
+- Claude: reads `~/.claude/.credentials.json`, uses `claudeAiOauth.accessToken` in memory, and calls `https://api.anthropic.com/api/oauth/usage`. When auto-refresh is enabled, it can refresh an expired token and atomically write it back.
 
 Safety rules:
 
 - does not print access tokens, refresh tokens, cookies, or session keys;
-- does not write to `~/.claude`, `~/.codex`, config, logs, or a database;
-- does not refresh Claude OAuth tokens;
+- does not write to `~/.codex`, logs, or a database;
+- only writes `~/.claude/.credentials.json` when auto-refresh is enabled and a token needs renewal; it keeps one `.credentials.json.bak` backup immediately before that write;
+- supports `--no-claude-refresh` for strictly read-only Claude collection;
 - does not read conversation transcripts;
 - returns source errors as JSON instead of throwing raw output.
 

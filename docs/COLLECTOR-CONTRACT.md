@@ -303,11 +303,10 @@ Everything else should be treated as optional v0 debug/supporting data.
 ## Known v0 limits
 
 - Claude OAuth usage endpoint is useful but not public-stability guaranteed.
-- Collector does not refresh Claude OAuth tokens.
+- Claude OAuth refresh is optional and enabled by the tray app by default. When enabled, an expired token may be refreshed and atomically written back to the existing Claude credentials file after creating one adjacent `.bak` backup. The collector supports a read-only `--no-claude-refresh` mode.
 - Collector does not read Claude browser session keys.
 - Collector does not install Claude statusLine hooks.
-- Collector does not save history yet.
-- Collector is not the tray app yet.
+- History is written by the separate history helper, not by collector stdout handling.
 
 ## Next contract tasks
 
