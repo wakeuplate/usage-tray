@@ -120,5 +120,41 @@ class TelegramErrorDedupTests(unittest.TestCase):
             self.assertNotIn("claude", state["errors"])
 
 
+class TelegramCommandTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.telegram = load_module("telegram_bridge_commands", TELEGRAM_PATH)
+
+    def test_command_name_accepts_refresh_commands_with_bot_suffix(self) -> None:
+        self.assertEqual(self.telegram.command_name("/refresh_claude@usage_bot"), "/refresh_claude")
+        self.assertEqual(self.telegram.command_name("/refresh_codex extra words"), "/refresh_codex")
+        self.assertIsNone(self.telegram.command_name("/refresh_everything"))
+
+    def test_refresh_message_reports_only_requested_agent(self) -> None:
+        message = self.telegram.refresh_command_message(healthy_snapshot(), "claude")
+        self.assertIn("Claude", message)
+        self.assertNotIn("Codex", message)
+
+    def test_refresh_command_from_other_chat_is_ignored(self) -> None:
+        updates = {
+            "result": [
+                {
+                    "update_id": 100,
+                    "message": {"chat": {"id": "other"}, "text": "/refresh_claude"},
+                }
+            ]
+        }
+        with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+            self.telegram, "app_dir", return_value=Path(tmp_dir)
+        ), mock.patch.object(
+            self.telegram, "load_settings", return_value={"enabled": True, "chat_id": "allowed"}
+        ), mock.patch.object(self.telegram, "load_token", return_value="token"), mock.patch.object(
+            self.telegram, "telegram_api", return_value=updates
+        ), mock.patch.object(self.telegram, "send_message") as send_message:
+            result = self.telegram.action_poll_commands({"snapshot": healthy_snapshot()})
+        self.assertEqual(result, {"ok": True, "handled": 0})
+        send_message.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

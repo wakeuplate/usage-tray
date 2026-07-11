@@ -37,7 +37,7 @@
 - `Now`：Claude、Codex 各額度視窗的已用百分比、重置時間，即時刷新。
 - `Trends`：兩張走勢圖——5 小時額度（近 24 小時）與每週額度（近 7 天）——Claude／Codex 同框疊圖對比，圖例帶目前值。
 - `Alerts`：Telegram bot 設定（貼 token、自動偵測 chat、測試發送）與門檻推播。
-- Telegram 雙向：跨門檻主動推播（同一輪多個門檻合併成一則）；傳 `/usage` 隨時反查（約 2 分鐘內回覆）。
+- Telegram 雙向：跨門檻主動推播（同一輪多個門檻合併成一則）；傳 `/usage` 隨時反查，或傳 `/refresh_claude`、`/refresh_codex` 重新驗證單一服務並回報最新狀態（約 2 分鐘內回覆）。刷新只走本機收集器與官方用量／授權服務，不會送出模型提示或消耗模型額度。
 
 ## 系統需求
 
@@ -77,7 +77,7 @@ npm run tauri build
   - Codex：本機 `codex app-server` 的 `account/rateLimits/read` JSON-RPC。
   - Claude：讀 `%USERPROFILE%\.claude\.credentials.json` 呼叫官方 usage API；過期自動 refresh 並原子寫回。
 - **歷史**：`collectors/history_snapshot.py` 寫入 `%APPDATA%\UsageTray\snapshots.jsonl`（設計見 [docs/SNAPSHOT-HISTORY.md](docs/SNAPSHOT-HISTORY.md)）。
-- **警報與指令**：`collectors/telegram_bridge.py` 處理門檻去重、推播與 `/usage` 回覆。
+- **警報與指令**：`collectors/telegram_bridge.py` 處理門檻去重、推播，以及 `/usage`、`/refresh_claude`、`/refresh_codex` 回覆。
 
 ## 測試
 
