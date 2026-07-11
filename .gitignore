@@ -9,3 +9,6 @@ refresh-live-test*
 release/
 PLAN.md
 STATUS.md
+work/
+codex-task-*.md
+codex-audit-report-*.md
