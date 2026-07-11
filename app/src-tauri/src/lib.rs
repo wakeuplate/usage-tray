@@ -109,6 +109,16 @@ fn run_collector(app: &AppHandle) -> Result<serde_json::Value, String> {
     let settings = load_app_settings(app);
     let mut command = python_command()?;
     command.arg(&collector_path).arg("--timeout-sec").arg("20");
+    // Pass the refresh-cooldown state path explicitly. The collector otherwise
+    // derives it from %APPDATA% inside the child process; when that isn't
+    // inherited the cooldown never persists, so a failing refresh gets hammered
+    // every cycle and is rate-limited (429). This is the same location the
+    // collector's own default resolves to.
+    if let Ok(data_dir) = history_output_path(app) {
+        command
+            .arg("--refresh-state-file")
+            .arg(data_dir.join("claude-refresh-state.json"));
+    }
     if !settings.claude_auto_refresh {
         command.arg("--no-claude-refresh");
     }

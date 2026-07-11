@@ -576,7 +576,11 @@ def action_process_alerts(payload: dict[str, Any]) -> dict[str, Any]:
             if isinstance(error, dict):
                 code = error.get("code")
                 message = error.get("message")
-                if isinstance(code, str) and error_state.get(agent_name) != code:
+                # Notify once per outage, not once per error code. Alternating
+                # codes within one outage (e.g. 401 auth-expired flipping to 429
+                # rate-limited) previously re-sent every run; only a recovery
+                # (the error_state.pop below) resets the notification.
+                if isinstance(code, str) and agent_name not in error_state:
                     send_message(
                         token,
                         str(chat_id),
